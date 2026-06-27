@@ -277,8 +277,8 @@ body[data-filter="corner"] .cubie.corner {
 }
 
 .chip {
-  min-height: 38px;
-  padding: 8px 11px;
+  min-height: 42px;
+  padding: 9px 12px;
 }
 
 .chip.is-active {
@@ -323,8 +323,8 @@ code {
 }
 
 .face-controls button {
-  width: 50px;
-  height: 42px;
+  width: 52px;
+  height: 44px;
 }
 
 .toast {
@@ -349,6 +349,90 @@ code {
   transform: translate(-50%, 0);
 }
 
+.disclosure {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: rgba(3, 5, 8, 0.68);
+  backdrop-filter: blur(14px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+
+.disclosure.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.disclosure-panel {
+  width: min(100%, 460px);
+  padding: 26px;
+  color: var(--ink);
+  background: rgba(13, 16, 22, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  box-shadow: 0 24px 90px rgba(0, 0, 0, 0.46);
+  transform: translateY(10px) scale(0.98);
+  transition: transform 180ms ease;
+}
+
+.disclosure.is-open .disclosure-panel {
+  transform: translateY(0) scale(1);
+}
+
+.disclosure-panel h2 {
+  margin: 0;
+  font-size: clamp(1.65rem, 4vw, 2.45rem);
+  line-height: 1;
+}
+
+.disclosure-panel p:not(.eyebrow) {
+  margin: 18px 0 22px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.disclosure-panel a {
+  color: var(--accent);
+}
+
+.disclosure-panel button,
+.disclosure-reopen {
+  color: #06110e;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.disclosure-panel button {
+  min-height: 42px;
+  padding: 10px 16px;
+}
+
+.disclosure-reopen {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 4;
+  padding: 9px 12px;
+  font-size: 0.84rem;
+  font-weight: 760;
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.28);
+}
+
+@media (hover: none) {
+  .command button:hover,
+  .chip:hover,
+  .face-controls button:hover {
+    transform: none;
+  }
+}
+
 @keyframes rise {
   from { opacity: 0; transform: translateY(22px); }
   to { opacity: 1; transform: translateY(0); }
@@ -365,6 +449,10 @@ code {
 }
 
 @media (max-width: 980px) {
+  :root {
+    --tile: clamp(44px, 10vmin, 66px);
+  }
+
   .stage,
   .hero,
   .notes {
@@ -373,12 +461,12 @@ code {
 
   .hero {
     min-height: auto;
-    padding-bottom: 28px;
+    padding: 34px clamp(18px, 5vw, 42px) 28px;
   }
 
   .scene-shell {
-    min-height: 440px;
-    margin-top: 32px;
+    min-height: min(58vh, 480px);
+    margin-top: clamp(22px, 5vw, 36px);
   }
 
   .toolbar {
@@ -390,7 +478,18 @@ code {
   }
 
   .tool-group {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
     margin-bottom: 18px;
+    gap: 10px;
+  }
+
+  .tool-group h2 {
+    grid-column: 1 / -1;
+  }
+
+  .chip {
+    width: 100%;
   }
 
   .notes p,
@@ -401,26 +500,142 @@ code {
 
 @media (max-width: 620px) {
   :root {
-    --tile: clamp(39px, 17vw, 58px);
+    --tile: clamp(35px, 14.6vw, 50px);
+    --gap: clamp(3px, 1.2vw, 5px);
+  }
+
+  body {
+    background:
+      radial-gradient(circle at 50% 18%, rgba(67, 217, 184, 0.2), transparent 20rem),
+      linear-gradient(160deg, #090a0d 0%, #11191a 45%, #0c0d11 100%);
   }
 
   .hero {
-    padding: 28px 18px;
+    min-height: auto;
+    padding: 22px 16px 18px;
+  }
+
+  .eyebrow {
+    margin-bottom: 10px;
+    font-size: 0.74rem;
   }
 
   h1 {
-    font-size: clamp(4rem, 23vw, 6.5rem);
+    font-size: clamp(3.8rem, 18vw, 5.8rem);
+    line-height: 0.9;
+    max-width: 5.2em;
+  }
+
+  .lede {
+    margin-top: 18px;
+    font-size: 0.98rem;
+    line-height: 1.5;
   }
 
   .command {
     grid-template-columns: 1fr auto;
+    margin-top: 22px;
+    padding: 8px;
+    gap: 7px;
   }
 
   .command span {
     display: none;
   }
 
+  .command input,
+  .command button {
+    min-height: 44px;
+  }
+
+  .scene-shell {
+    min-height: 310px;
+    margin-top: 18px;
+    perspective: 1050px;
+  }
+
+  .scene {
+    transform: rotateX(-22deg) rotateY(-36deg);
+  }
+
+  .toolbar {
+    padding: 20px 16px 10px;
+  }
+
+  .tool-group {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+    margin-bottom: 20px;
+  }
+
+  .chip {
+    min-height: 46px;
+    padding: 10px 9px;
+  }
+
   .notes {
-    padding: 36px 18px 56px;
+    padding: 30px 16px 82px;
+  }
+
+  .notes h2 {
+    font-size: clamp(2rem, 12vw, 3rem);
+  }
+
+  .notes p {
+    font-size: 0.98rem;
+    line-height: 1.6;
+  }
+
+  .face-controls {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 9px;
+  }
+
+  .face-controls button {
+    width: 100%;
+    height: 48px;
+  }
+
+  .toast {
+    bottom: 72px;
+    width: calc(100vw - 32px);
+    text-align: center;
+  }
+
+  .disclosure {
+    align-items: end;
+    padding: 14px;
+  }
+
+  .disclosure-panel {
+    padding: 22px;
+    max-height: calc(100svh - 28px);
+    overflow: auto;
+  }
+
+  .disclosure-panel button {
+    width: 100%;
+    min-height: 46px;
+  }
+
+  .disclosure-reopen {
+    right: 14px;
+    bottom: 14px;
+    min-height: 42px;
+  }
+}
+
+@media (max-width: 380px) {
+  :root {
+    --tile: clamp(32px, 13.8vw, 43px);
+  }
+
+  h1 {
+    font-size: clamp(3.25rem, 17vw, 4.6rem);
+  }
+
+  .scene-shell {
+    min-height: 270px;
   }
 }

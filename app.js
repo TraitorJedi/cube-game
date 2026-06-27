@@ -3,6 +3,9 @@ const scene = document.querySelector("#scene");
 const toast = document.querySelector("#toast");
 const commandInput = document.querySelector("#commandInput");
 const runCommand = document.querySelector("#runCommand");
+const disclosure = document.querySelector("#disclosure");
+const disclosureClose = document.querySelector("#disclosureClose");
+const disclosureReopen = document.querySelector("#disclosureReopen");
 
 const stickers = {
   front: { axis: "z", value: 1, label: "F" },
@@ -41,11 +44,19 @@ let turnQueue = Promise.resolve();
 
 function tileStep() {
   const vmin = Math.min(window.innerWidth, window.innerHeight);
+  const isTiny = window.matchMedia("(max-width: 380px)").matches;
   const isSmall = window.matchMedia("(max-width: 620px)").matches;
-  const tile = isSmall
-    ? Math.min(Math.max(window.innerWidth * 0.17, 39), 58)
-    : Math.min(Math.max(vmin * 0.08, 42), 74);
-  const gap = Math.min(Math.max(vmin * 0.007, 3), 6);
+  const isMedium = window.matchMedia("(max-width: 980px)").matches;
+  const tile = isTiny
+    ? Math.min(Math.max(window.innerWidth * 0.138, 32), 43)
+    : isSmall
+      ? Math.min(Math.max(window.innerWidth * 0.146, 35), 50)
+      : isMedium
+        ? Math.min(Math.max(vmin * 0.1, 44), 66)
+        : Math.min(Math.max(vmin * 0.08, 42), 74);
+  const gap = isSmall
+    ? Math.min(Math.max(window.innerWidth * 0.012, 3), 5)
+    : Math.min(Math.max(vmin * 0.007, 3), 6);
   return tile + gap;
 }
 
@@ -344,6 +355,24 @@ document.querySelectorAll("[data-action]").forEach((button) => {
 
 document.querySelectorAll("[data-move]").forEach((button) => {
   button.addEventListener("click", () => runMoves([button.dataset.move]));
+});
+
+function closeDisclosure() {
+  disclosure.classList.remove("is-open");
+}
+
+function openDisclosure() {
+  disclosure.classList.add("is-open");
+  disclosureClose.focus();
+}
+
+disclosureClose.addEventListener("click", closeDisclosure);
+disclosureReopen.addEventListener("click", openDisclosure);
+disclosure.addEventListener("click", (event) => {
+  if (event.target === disclosure) closeDisclosure();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closeDisclosure();
 });
 
 runCommand.addEventListener("click", () => runMoves(commandInput.value));
