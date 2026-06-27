@@ -529,6 +529,8 @@ code {
     width: 100vw;
     min-height: 100svh;
     display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
     place-items: center;
     padding: 0;
   }
@@ -567,6 +569,8 @@ code {
   }
 
   .scene-shell {
+    grid-column: 1;
+    grid-row: 1;
     width: 100vw;
     min-height: 100svh;
     margin-top: 0;
