@@ -159,15 +159,30 @@ function applyRotation() {
   scene.style.transform = `rotateX(${rotation.x}deg) rotateY(${rotation.y}deg)`;
 }
 
-function stickerSideFromElement(element) {
+function touchedStickerFromElement(element) {
   const stickerElement = element?.closest?.(".sticker");
-  if (!stickerElement) return null;
-  return Array.from(stickerElement.classList)
+  const cubeletElement = element?.closest?.(".cubie");
+  if (!stickerElement || !cubeletElement) return null;
+
+  const side = Array.from(stickerElement.classList)
     .find((className) => className.startsWith("side-"))
-    ?.replace("side-", "") || null;
+    ?.replace("side-", "");
+  const cubelet = cubelets.find((item) => item.element === cubeletElement);
+
+  return side && cubelet ? { side, cubelet } : null;
 }
 
-function gestureMoveForSide(side, dx, dy) {
+function inverseMove(move) {
+  return move.includes("'") ? move.replace("'", "") : `${move}'`;
+}
+
+function layerMove(positiveMove, negativeMove, layerValue, positiveDrag) {
+  if (layerValue === 1) return positiveDrag ? positiveMove : inverseMove(positiveMove);
+  if (layerValue === -1) return positiveDrag ? negativeMove : inverseMove(negativeMove);
+  return null;
+}
+
+function centerFaceMove(side, dx, dy) {
   const horizontal = Math.abs(dx) >= Math.abs(dy);
 
   const gestures = {
@@ -180,6 +195,31 @@ function gestureMoveForSide(side, dx, dy) {
   };
 
   return gestures[side] || null;
+}
+
+function gestureMoveForTouch(side, position, dx, dy) {
+  const horizontal = Math.abs(dx) >= Math.abs(dy);
+  let move = null;
+
+  if (side === "front" || side === "back") {
+    move = horizontal
+      ? layerMove("U'", "D", position.y, dx > 0)
+      : layerMove("R'", "L", position.x, dy > 0);
+  }
+
+  if (side === "right" || side === "left") {
+    move = horizontal
+      ? layerMove("U'", "D", position.y, dx > 0)
+      : layerMove("F'", "B", position.z, dy > 0);
+  }
+
+  if (side === "up" || side === "down") {
+    move = horizontal
+      ? layerMove("F", "B'", position.z, dx > 0)
+      : layerMove("R'", "L", position.x, dy > 0);
+  }
+
+  return move || centerFaceMove(side, dx, dy);
 }
 
 function parseMoves(input) {
@@ -409,10 +449,11 @@ document.querySelector(".scene-shell").addEventListener("pointerdown", (event) =
   event.currentTarget.setPointerCapture(event.pointerId);
   scene.classList.remove("auto");
 
-  const touchedSide = stickerSideFromElement(event.target);
-  if (touchedSide) {
+  const touchedSticker = touchedStickerFromElement(event.target);
+  if (touchedSticker) {
     faceDrag = {
-      side: touchedSide,
+      side: touchedSticker.side,
+      position: { ...touchedSticker.cubelet.position },
       x: event.clientX,
       y: event.clientY,
       moved: false
@@ -435,7 +476,7 @@ document.querySelector(".scene-shell").addEventListener("pointermove", (event) =
     const dx = event.clientX - faceDrag.x;
     const dy = event.clientY - faceDrag.y;
     if (!faceDrag.moved && Math.hypot(dx, dy) > 24) {
-      const move = gestureMoveForSide(faceDrag.side, dx, dy);
+      const move = gestureMoveForTouch(faceDrag.side, faceDrag.position, dx, dy);
       if (move) runMoves([move]);
       faceDrag.moved = true;
     }
