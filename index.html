@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Cube Explorer</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="stage" aria-label="Interactive cube explorer">
+      <section class="hero">
+        <div class="copy">
+          <p class="eyebrow">Cube Explorer</p>
+          <h1>I am the cube.</h1>
+          <p class="lede">Twist faces, isolate cubelets, switch materials, and watch a tiny 3D puzzle reveal its logic.</p>
+          <div class="command" aria-label="Cube command input">
+            <span>cube.twist(</span>
+            <input id="commandInput" type="text" value="R U R' U'" aria-label="Twist notation">
+            <span>)</span>
+            <button id="runCommand" type="button">Run</button>
+          </div>
+        </div>
+
+        <div class="scene-shell">
+          <div class="scene" id="scene">
+            <div class="cube" id="cube" aria-hidden="true"></div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="toolbar" aria-label="Cube controls">
+        <div class="tool-group">
+          <h2>Styles</h2>
+          <button class="chip is-active" type="button" data-style="grid">Grid</button>
+          <button class="chip" type="button" data-style="glass">Glass</button>
+        </div>
+        <div class="tool-group">
+          <h2>Cubelets</h2>
+          <button class="chip" type="button" data-filter="center">Centers</button>
+          <button class="chip" type="button" data-filter="edge">Edges</button>
+          <button class="chip" type="button" data-filter="corner">Corners</button>
+          <button class="chip" type="button" data-filter="white">Whites</button>
+        </div>
+        <div class="tool-group">
+          <h2>Labels</h2>
+          <button class="chip" type="button" data-label="numbers">Numbers</button>
+          <button class="chip" type="button" data-label="faces">Faces</button>
+        </div>
+        <div class="tool-group">
+          <h2>Actions</h2>
+          <button class="chip" type="button" data-action="rotate">Rotate</button>
+          <button class="chip" type="button" data-action="realign">Realign</button>
+          <button class="chip" type="button" data-action="shuffle">Shuffle</button>
+          <button class="chip" type="button" data-action="undo">Undo</button>
+          <button class="chip" type="button" data-action="demo">Demo</button>
+        </div>
+      </aside>
+
+      <section class="notes">
+        <h2>Hackable by design</h2>
+        <p>Use standard turns like <code>R U R' U'</code>, or click a face button below. Lowercase and wide turns are simplified into readable single-face moves for this lightweight clone.</p>
+        <div class="face-controls" aria-label="Face turns">
+          <button type="button" data-move="U">U</button>
+          <button type="button" data-move="D">D</button>
+          <button type="button" data-move="L">L</button>
+          <button type="button" data-move="R">R</button>
+          <button type="button" data-move="F">F</button>
+          <button type="button" data-move="B">B</button>
+          <button type="button" data-move="U'">U'</button>
+          <button type="button" data-move="R'">R'</button>
+          <button type="button" data-move="F'">F'</button>
+        </div>
+      </section>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="app.js"></script>
+  </body>
+</html>
