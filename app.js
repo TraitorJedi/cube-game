@@ -37,6 +37,7 @@ const moveConfig = {
 const history = [];
 const cubelets = [];
 let drag = null;
+let faceDrag = null;
 let rotation = { x: -24, y: -34 };
 let toastTimer = 0;
 let demoTimer = 0;
@@ -156,6 +157,69 @@ function showToast(message) {
 
 function applyRotation() {
   scene.style.transform = `rotateX(${rotation.x}deg) rotateY(${rotation.y}deg)`;
+}
+
+function touchedStickerFromElement(element) {
+  const stickerElement = element?.closest?.(".sticker");
+  const cubeletElement = element?.closest?.(".cubie");
+  if (!stickerElement || !cubeletElement) return null;
+
+  const side = Array.from(stickerElement.classList)
+    .find((className) => className.startsWith("side-"))
+    ?.replace("side-", "");
+  const cubelet = cubelets.find((item) => item.element === cubeletElement);
+
+  return side && cubelet ? { side, cubelet } : null;
+}
+
+function inverseMove(move) {
+  return move.includes("'") ? move.replace("'", "") : `${move}'`;
+}
+
+function layerMove(positiveMove, negativeMove, layerValue, positiveDrag) {
+  if (layerValue === 1) return positiveDrag ? positiveMove : inverseMove(positiveMove);
+  if (layerValue === -1) return positiveDrag ? negativeMove : inverseMove(negativeMove);
+  return null;
+}
+
+function centerFaceMove(side, dx, dy) {
+  const horizontal = Math.abs(dx) >= Math.abs(dy);
+
+  const gestures = {
+    front: horizontal ? (dx > 0 ? "F" : "F'") : (dy > 0 ? "F'" : "F"),
+    back: horizontal ? (dx > 0 ? "B'" : "B") : (dy > 0 ? "B" : "B'"),
+    right: horizontal ? (dx > 0 ? "R'" : "R") : (dy > 0 ? "R'" : "R"),
+    left: horizontal ? (dx > 0 ? "L" : "L'") : (dy > 0 ? "L" : "L'"),
+    up: horizontal ? (dx > 0 ? "U'" : "U") : (dy > 0 ? "U" : "U'"),
+    down: horizontal ? (dx > 0 ? "D" : "D'") : (dy > 0 ? "D'" : "D")
+  };
+
+  return gestures[side] || null;
+}
+
+function gestureMoveForTouch(side, position, dx, dy) {
+  const horizontal = Math.abs(dx) >= Math.abs(dy);
+  let move = null;
+
+  if (side === "front" || side === "back") {
+    move = horizontal
+      ? layerMove("U'", "D", position.y, dx > 0)
+      : layerMove("R'", "L", position.x, dy > 0);
+  }
+
+  if (side === "right" || side === "left") {
+    move = horizontal
+      ? layerMove("U'", "D", position.y, dx > 0)
+      : layerMove("F'", "B", position.z, dy > 0);
+  }
+
+  if (side === "up" || side === "down") {
+    move = horizontal
+      ? layerMove("F", "B'", position.z, dx > 0)
+      : layerMove("R'", "L", position.x, dy > 0);
+  }
+
+  return move || centerFaceMove(side, dx, dy);
 }
 
 function parseMoves(input) {
@@ -380,18 +444,45 @@ commandInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") runMoves(commandInput.value);
 });
 
-scene.addEventListener("pointerdown", (event) => {
-  scene.setPointerCapture(event.pointerId);
+document.querySelector(".scene-shell").addEventListener("pointerdown", (event) => {
+  event.preventDefault();
+  event.currentTarget.setPointerCapture(event.pointerId);
   scene.classList.remove("auto");
+
+  const touchedSticker = touchedStickerFromElement(event.target);
+  if (touchedSticker) {
+    faceDrag = {
+      side: touchedSticker.side,
+      position: { ...touchedSticker.cubelet.position },
+      x: event.clientX,
+      y: event.clientY,
+      moved: false
+    };
+    drag = null;
+    return;
+  }
+
   drag = {
     x: event.clientX,
     y: event.clientY,
     startX: rotation.x,
     startY: rotation.y
   };
+  faceDrag = null;
 });
 
-scene.addEventListener("pointermove", (event) => {
+document.querySelector(".scene-shell").addEventListener("pointermove", (event) => {
+  if (faceDrag) {
+    const dx = event.clientX - faceDrag.x;
+    const dy = event.clientY - faceDrag.y;
+    if (!faceDrag.moved && Math.hypot(dx, dy) > 24) {
+      const move = gestureMoveForTouch(faceDrag.side, faceDrag.position, dx, dy);
+      if (move) runMoves([move]);
+      faceDrag.moved = true;
+    }
+    return;
+  }
+
   if (!drag) return;
   rotation = {
     x: Math.max(-80, Math.min(80, drag.startX - (event.clientY - drag.y) * 0.24)),
@@ -400,9 +491,13 @@ scene.addEventListener("pointermove", (event) => {
   applyRotation();
 });
 
-scene.addEventListener("pointerup", () => {
+function endPointerGesture() {
   drag = null;
-});
+  faceDrag = null;
+}
+
+document.querySelector(".scene-shell").addEventListener("pointerup", endPointerGesture);
+document.querySelector(".scene-shell").addEventListener("pointercancel", endPointerGesture);
 
 window.addEventListener("resize", renderCubelets);
 
