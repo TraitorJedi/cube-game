@@ -518,8 +518,11 @@ code {
   }
 
   .stage {
+    width: 100%;
     min-height: 100svh;
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
     place-items: center;
   }
 
@@ -530,6 +533,8 @@ code {
   }
 
   .hero {
+    grid-column: 1;
+    grid-row: 1;
     width: 100vw;
     min-height: 100svh;
     display: grid;

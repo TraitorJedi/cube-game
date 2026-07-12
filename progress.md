@@ -22,6 +22,12 @@ Original prompt: I'm missing the ability to move the center rings, also some of 
 - Removed the scene transform easing while empty-space dragging so cube view rotation stays directly under the pointer.
 - Browser-tested real pointer gestures: a 27.7-degree slow drag snapped back; a 55.5-degree slow drag committed `E`; a 35.7-degree fast flick also committed `E`; reverse committed `E'`; vertical center committed `M`; and an outer-row drag committed `U'`.
 - Verified empty-space dragging updates both view axes continuously, all completed gestures clear their preview/active state, final visuals render correctly, and the browser console remains clean.
+- Follow-up request: center and optimize the cube-only mobile layout from a supplied portrait screenshot.
+- Reproduced the issue at 393x737: the inherited desktop two-column stage grid placed the 393px hero inside a 93px first column, shifting the hero and cube 150px left.
+- Reset the mobile stage to a single-column/single-row grid and explicitly placed the hero in that cell.
+- Added a stylesheet cache key so the corrected responsive rules replace previously cached mobile CSS immediately.
+- Verified portrait layouts at 393x737 and 360x640: hero left edge is 0, visual cube centers are 194.9/196.5px and 180.1/180px respectively, screenshots are centered, and console errors are empty.
+- Ran the standard web-game regression capture at desktop size; layout, cube state, and desktop presentation remain unchanged.
 
 ## TODO
 
