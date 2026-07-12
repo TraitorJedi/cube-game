@@ -28,10 +28,23 @@ const sideVectors = {
 const moveConfig = {
   U: { axis: "y", layer: 1, angle: -90 },
   D: { axis: "y", layer: -1, angle: 90 },
+  E: { axis: "y", layer: 0, angle: 90 },
   R: { axis: "x", layer: 1, angle: -90 },
   L: { axis: "x", layer: -1, angle: 90 },
+  M: { axis: "x", layer: 0, angle: 90 },
   F: { axis: "z", layer: 1, angle: 90 },
-  B: { axis: "z", layer: -1, angle: -90 }
+  B: { axis: "z", layer: -1, angle: -90 },
+  S: { axis: "z", layer: 0, angle: 90 }
+};
+
+// Local right/up axes as each face is viewed straight on from outside the cube.
+const faceFrames = {
+  front: { right: { x: 1, y: 0, z: 0 }, up: { x: 0, y: 1, z: 0 } },
+  back: { right: { x: -1, y: 0, z: 0 }, up: { x: 0, y: 1, z: 0 } },
+  right: { right: { x: 0, y: 0, z: -1 }, up: { x: 0, y: 1, z: 0 } },
+  left: { right: { x: 0, y: 0, z: 1 }, up: { x: 0, y: 1, z: 0 } },
+  up: { right: { x: 1, y: 0, z: 0 }, up: { x: 0, y: 0, z: -1 } },
+  down: { right: { x: 1, y: 0, z: 0 }, up: { x: 0, y: 0, z: 1 } }
 };
 
 const history = [];
@@ -42,6 +55,8 @@ let rotation = { x: -24, y: -34 };
 let toastTimer = 0;
 let demoTimer = 0;
 let turnQueue = Promise.resolve();
+let activeMove = null;
+let dragPreview = null;
 
 function tileStep() {
   const vmin = Math.min(window.innerWidth, window.innerHeight);
@@ -172,61 +187,153 @@ function touchedStickerFromElement(element) {
   return side && cubelet ? { side, cubelet } : null;
 }
 
-function inverseMove(move) {
-  return move.includes("'") ? move.replace("'", "") : `${move}'`;
+function vectorAxis(vector) {
+  return ["x", "y", "z"].find((axis) => vector[axis] !== 0);
 }
 
-function layerMove(positiveMove, negativeMove, layerValue, positiveDrag) {
-  if (layerValue === 1) return positiveDrag ? positiveMove : inverseMove(positiveMove);
-  if (layerValue === -1) return positiveDrag ? negativeMove : inverseMove(negativeMove);
-  return null;
+function scaleVector(vector, amount) {
+  return { x: vector.x * amount, y: vector.y * amount, z: vector.z * amount };
 }
 
-function centerFaceMove(side, dx, dy) {
-  const horizontal = Math.abs(dx) >= Math.abs(dy);
+function dotProduct(first, second) {
+  return first.x * second.x + first.y * second.y + first.z * second.z;
+}
 
-  const gestures = {
-    front: horizontal ? (dx > 0 ? "F" : "F'") : (dy > 0 ? "F'" : "F"),
-    back: horizontal ? (dx > 0 ? "B'" : "B") : (dy > 0 ? "B" : "B'"),
-    right: horizontal ? (dx > 0 ? "R'" : "R") : (dy > 0 ? "R'" : "R"),
-    left: horizontal ? (dx > 0 ? "L" : "L'") : (dy > 0 ? "L" : "L'"),
-    up: horizontal ? (dx > 0 ? "U'" : "U") : (dy > 0 ? "U" : "U'"),
-    down: horizontal ? (dx > 0 ? "D" : "D'") : (dy > 0 ? "D'" : "D")
-  };
+function moveForRotation(axis, layer, angle) {
+  const entry = Object.entries(moveConfig).find(([, config]) => (
+    config.axis === axis && config.layer === layer
+  ));
+  if (!entry) return null;
 
-  return gestures[side] || null;
+  const [move, config] = entry;
+  return angle === config.angle ? move : `${move}'`;
 }
 
 function gestureMoveForTouch(side, position, dx, dy) {
+  const frame = faceFrames[side];
+  const normal = sideVectors[side];
+  if (!frame || !normal) return null;
+
   const horizontal = Math.abs(dx) >= Math.abs(dy);
-  let move = null;
+  const rotationAxis = horizontal ? frame.up : frame.right;
+  const axis = vectorAxis(rotationAxis);
+  const dragDirection = horizontal
+    ? scaleVector(frame.right, dx >= 0 ? 1 : -1)
+    : scaleVector(frame.up, dy >= 0 ? -1 : 1);
 
-  if (side === "front" || side === "back") {
-    move = horizontal
-      ? layerMove("U'", "D", position.y, dx > 0)
-      : layerMove("R'", "L", position.x, dy > 0);
-  }
+  // Choose the quarter-turn that carries this face's normal in the drag direction.
+  // This keeps back, left, top, and bottom gestures relative to the touched face.
+  const positiveNormal = rotatePosition(normal, axis, 90);
+  const negativeNormal = rotatePosition(normal, axis, -90);
+  let angle = dotProduct(positiveNormal, dragDirection) > dotProduct(negativeNormal, dragDirection)
+    ? 90
+    : -90;
 
-  if (side === "right" || side === "left") {
-    move = horizontal
-      ? layerMove("U'", "D", position.y, dx > 0)
-      : layerMove("F'", "B", position.z, dy > 0);
-  }
+  // The white center is viewed from above in the default perspective, so its
+  // middle-ring response needs the opposite turn to follow the pointer.
+  const isWhiteCenter = side === "up"
+    && position.x === 0
+    && position.y === 1
+    && position.z === 0;
+  if (isWhiteCenter) angle *= -1;
 
-  if (side === "up" || side === "down") {
-    move = horizontal
-      ? layerMove("F", "B'", position.z, dx > 0)
-      : layerMove("R'", "L", position.x, dy > 0);
-  }
+  return moveForRotation(axis, position[axis], angle);
+}
 
-  return move || centerFaceMove(side, dx, dy);
+function dragSetupForTouch(side, position, horizontal) {
+  const move = gestureMoveForTouch(
+    side,
+    position,
+    horizontal ? 1 : 0,
+    horizontal ? 0 : 1
+  );
+  const details = moveDetails(move);
+  if (!move || !details) return null;
+
+  return {
+    move,
+    horizontal,
+    axis: details.axis,
+    layer: details.layer,
+    positiveAngle: details.angle
+  };
+}
+
+function turnNotation(axis, layer, angle) {
+  const entry = Object.entries(moveConfig).find(([, config]) => (
+    config.axis === axis && config.layer === layer
+  ));
+  if (!entry) return null;
+
+  const [move, config] = entry;
+  const turns = Math.round(angle / config.angle);
+  const normalized = ((turns % 4) + 4) % 4;
+  if (normalized === 0) return null;
+  if (normalized === 1) return move;
+  if (normalized === 2) return `${move}2`;
+  return `${move}'`;
+}
+
+function setSlicePreview(preview, angle, animated = false, duration = 0) {
+  const turn = axisTransform(preview.axis, visualAngle(preview.axis, angle));
+  preview.affected.forEach((cubelet) => {
+    cubelet.element.classList.add("is-turning");
+    cubelet.element.style.transition = animated
+      ? `transform ${duration}ms cubic-bezier(0.2, 0.78, 0.2, 1), opacity 200ms ease`
+      : "none";
+    cubelet.element.style.transform = `${turn} ${baseTransform(cubelet)}`;
+  });
+  preview.angle = angle;
+  dragPreview = {
+    axis: preview.axis,
+    layer: preview.layer,
+    angle: Math.round(angle * 10) / 10,
+    targetAngle: preview.targetAngle ?? null
+  };
+}
+
+function clearSlicePreview(preview) {
+  preview.affected.forEach((cubelet) => {
+    cubelet.element.style.transition = "none";
+    cubelet.element.classList.remove("is-turning");
+  });
+  renderCubelets();
+  cube.offsetHeight;
+  preview.affected.forEach((cubelet) => {
+    cubelet.element.style.transition = "";
+  });
+  dragPreview = null;
+}
+
+function finishFaceDrag(preview, targetAngle) {
+  const move = turnNotation(preview.axis, preview.layer, targetAngle);
+  const remaining = Math.abs(targetAngle - preview.angle);
+  const duration = Math.max(110, Math.min(320, 110 + remaining * 1.8));
+
+  preview.targetAngle = targetAngle;
+  activeMove = move || "snap-back";
+  setSlicePreview(preview, targetAngle, true, duration);
+  if (move) showToast(`Twist ${move}`);
+
+  setTimeout(() => {
+    if (targetAngle !== 0) {
+      preview.affected.forEach((cubelet) => {
+        cubelet.position = rotatePosition(cubelet.position, preview.axis, targetAngle);
+        cubelet.stickers = rotateStickerSides(cubelet.stickers, preview.axis, targetAngle);
+        renderStickers(cubelet);
+      });
+      history.push(move);
+    }
+    clearSlicePreview(preview);
+    activeMove = null;
+  }, duration);
 }
 
 function parseMoves(input) {
   return input
     .replace(/[(),;]/g, " ")
     .split(/\s+/)
-    .flatMap((chunk) => chunk.match(/[FBRLUDfbrlud]['2]?/g) || [])
+    .flatMap((chunk) => chunk.match(/[FBRLUDMESfbrludmes]['2]?/g) || [])
     .map((move) => move[0].toUpperCase() + move.slice(1));
 }
 
@@ -288,6 +395,7 @@ function animateMove(move, record = true) {
   });
 
   if (record) history.push(move);
+  activeMove = move;
   showToast(`Twist ${move}`);
 
   return new Promise((resolve) => {
@@ -304,6 +412,7 @@ function animateMove(move, record = true) {
       affected.forEach((cubelet) => {
         cubelet.element.style.transition = "";
       });
+      activeMove = null;
       resolve();
     }, 440);
   });
@@ -313,7 +422,7 @@ function runMoves(sequence, record = true) {
   const moves = Array.isArray(sequence) ? sequence : parseMoves(sequence);
   if (!moves.length) {
     showToast("Try moves like R U R' U'");
-    return;
+    return turnQueue;
   }
 
   turnQueue = turnQueue.then(async () => {
@@ -321,6 +430,7 @@ function runMoves(sequence, record = true) {
       await animateMove(move, record);
     }
   });
+  return turnQueue;
 }
 
 function setActive(button, groupSelector, active = true) {
@@ -446,6 +556,7 @@ commandInput.addEventListener("keydown", (event) => {
 
 document.querySelector(".scene-shell").addEventListener("pointerdown", (event) => {
   event.preventDefault();
+  if (activeMove) return;
   event.currentTarget.setPointerCapture(event.pointerId);
   scene.classList.remove("auto");
 
@@ -456,7 +567,8 @@ document.querySelector(".scene-shell").addEventListener("pointerdown", (event) =
       position: { ...touchedSticker.cubelet.position },
       x: event.clientX,
       y: event.clientY,
-      moved: false
+      startTime: performance.now(),
+      setup: null
     };
     drag = null;
     return;
@@ -468,6 +580,7 @@ document.querySelector(".scene-shell").addEventListener("pointerdown", (event) =
     startX: rotation.x,
     startY: rotation.y
   };
+  scene.classList.add("is-dragging");
   faceDrag = null;
 });
 
@@ -475,10 +588,27 @@ document.querySelector(".scene-shell").addEventListener("pointermove", (event) =
   if (faceDrag) {
     const dx = event.clientX - faceDrag.x;
     const dy = event.clientY - faceDrag.y;
-    if (!faceDrag.moved && Math.hypot(dx, dy) > 24) {
-      const move = gestureMoveForTouch(faceDrag.side, faceDrag.position, dx, dy);
-      if (move) runMoves([move]);
-      faceDrag.moved = true;
+    if (!faceDrag.setup && Math.hypot(dx, dy) > 6) {
+      const setup = dragSetupForTouch(
+        faceDrag.side,
+        faceDrag.position,
+        Math.abs(dx) >= Math.abs(dy)
+      );
+      if (setup) {
+        faceDrag.setup = {
+          ...setup,
+          angle: 0,
+          targetAngle: null,
+          affected: cubelets.filter((cubelet) => cubelet.position[setup.axis] === setup.layer)
+        };
+      }
+    }
+    if (faceDrag.setup) {
+      const delta = faceDrag.setup.horizontal ? dx : dy;
+      const cubeSize = tileStep() * 3;
+      const angle = delta / cubeSize * 1.3 * 180 / Math.PI
+        * (faceDrag.setup.positiveAngle / 90);
+      setSlicePreview(faceDrag.setup, Math.max(-225, Math.min(225, angle)));
     }
     return;
   }
@@ -491,9 +621,29 @@ document.querySelector(".scene-shell").addEventListener("pointermove", (event) =
   applyRotation();
 });
 
-function endPointerGesture() {
+function endPointerGesture(event) {
+  if (faceDrag?.setup) {
+    const preview = faceDrag.setup;
+    const elapsed = Math.max(1, performance.now() - faceDrag.startTime);
+    const dragDistance = preview.horizontal
+      ? event.clientX - faceDrag.x
+      : event.clientY - faceDrag.y;
+    const speed = Math.abs(dragDistance) / elapsed;
+    let targetAngle = Math.round(preview.angle / 90) * 90;
+
+    // Like the reference cube, a quick flick commits in the flick direction
+    // even if the slice has not crossed the halfway point yet.
+    if (speed > 0.3 && Math.abs(preview.angle) > 4) {
+      targetAngle = preview.angle > 0
+        ? Math.ceil(preview.angle / 90) * 90
+        : Math.floor(preview.angle / 90) * 90;
+    }
+    targetAngle = Math.max(-180, Math.min(180, targetAngle));
+    finishFaceDrag(preview, targetAngle);
+  }
   drag = null;
   faceDrag = null;
+  scene.classList.remove("is-dragging");
 }
 
 document.querySelector(".scene-shell").addEventListener("pointerup", endPointerGesture);
@@ -503,8 +653,7 @@ window.addEventListener("resize", renderCubelets);
 
 window.cube = {
   twist(sequence) {
-    runMoves(sequence);
-    return `Twisting ${sequence}`;
+    return runMoves(sequence);
   },
   inspect() {
     return {
@@ -512,9 +661,29 @@ window.cube = {
       moves: history.slice()
     };
   },
+  gesture(side, position, dx, dy) {
+    return gestureMoveForTouch(side, position, dx, dy);
+  },
   realign,
   shuffle
 };
+
+window.render_game_to_text = () => JSON.stringify({
+  coordinateSystem: "Cube coordinates: +x right, +y up, +z front; face gestures use local horizontal/vertical axes.",
+  viewRotation: { ...rotation },
+  activeMove,
+  dragPreview,
+  moves: history.slice(),
+  cubelets: cubelets.map(({ index, position, stickers: cubeletStickers }) => ({
+    index,
+    position: { ...position },
+    stickers: { ...cubeletStickers }
+  }))
+});
+
+// This UI has no simulation loop; expose a no-op step hook for deterministic
+// browser tooling without interrupting in-progress CSS turn animations.
+window.advanceTime = () => window.render_game_to_text();
 
 buildCube();
 showToast("Drag the cube or run a twist");

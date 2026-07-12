@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Cube Explorer</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><rect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%2343d9b8%22/><path d=%22M8 8h7v7H8zm9 0h7v7h-7zM8 17h7v7H8zm9 0h7v7h-7z%22 fill=%22%23090a0d%22/></svg>">
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
@@ -58,7 +59,7 @@
 
       <section class="notes">
         <h2>Hackable by design</h2>
-        <p>Use standard turns like <code>R U R' U'</code>, or click a face button below. Lowercase and wide turns are simplified into readable single-face moves for this lightweight clone.</p>
+        <p>Drag any sticker horizontally or vertically to turn its row or column relative to that face. Center stickers move the middle rings; use <code>M</code>, <code>E</code>, and <code>S</code> in commands too.</p>
         <div class="face-controls" aria-label="Face turns">
           <button type="button" data-move="U">U</button>
           <button type="button" data-move="D">D</button>
@@ -69,6 +70,12 @@
           <button type="button" data-move="U'">U'</button>
           <button type="button" data-move="R'">R'</button>
           <button type="button" data-move="F'">F'</button>
+          <button type="button" data-move="M">M</button>
+          <button type="button" data-move="E">E</button>
+          <button type="button" data-move="S">S</button>
+          <button type="button" data-move="M'">M'</button>
+          <button type="button" data-move="E'">E'</button>
+          <button type="button" data-move="S'">S'</button>
         </div>
       </section>
     </main>
