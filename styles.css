@@ -415,6 +415,74 @@ code {
   cursor: pointer;
 }
 
+.interior {
+  position: fixed;
+  inset: 0;
+  z-index: 12;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: rgba(3, 5, 8, 0.74);
+  backdrop-filter: blur(14px);
+}
+
+.interior[hidden] { display: none; }
+
+.interior-panel {
+  width: min(100%, 540px);
+  padding: clamp(20px, 4vw, 32px);
+  color: var(--ink);
+  background: linear-gradient(145deg, rgba(25, 30, 25, 0.98), rgba(10, 13, 15, 0.98));
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  box-shadow: 0 26px 100px rgba(0, 0, 0, 0.58);
+}
+
+.interior-heading { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
+.interior-heading .eyebrow { margin-bottom: 8px; }
+.interior-heading h2 { margin: 0; font-size: clamp(2rem, 5vw, 3.5rem); line-height: .92; }
+.interior-close { color: #06110e; background: var(--accent); border: 1px solid var(--accent); border-radius: 7px; padding: 8px 12px; cursor: pointer; font-weight: 760; }
+.interior-help { margin: 18px 0 22px; color: var(--muted); line-height: 1.5; }
+
+.interior-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+  padding: 12px;
+  background: #c99e28;
+  border: 7px solid #d83a34;
+  border-right-color: #246fe5;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.36), 0 16px 44px rgba(0, 0, 0, 0.32);
+}
+
+.interior-cell {
+  aspect-ratio: 1;
+  position: relative;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(6, 10, 12, 0.55);
+  border-radius: 3px;
+  background: #e8c448;
+  cursor: pointer;
+}
+
+.interior-cell:focus-visible { outline: 3px solid #fff; outline-offset: -4px; }
+.player-cube { width: 52%; height: 52%; border-radius: 2px; background: linear-gradient(135deg, #f5f3e7 0 47%, #43d9b8 48% 100%); box-shadow: 5px 5px 0 rgba(5, 8, 10, 0.4); transform: translate(-2px, -2px); }
+
+/* The puzzle is intentionally a single, uninterrupted play surface. */
+.stage { display: block; min-height: 100svh; overflow: hidden; }
+.scene-shell { width: 100vw; min-height: 100svh; perspective: 1400px; opacity: 1; transition: opacity 400ms ease 120ms; }
+.mode-toggle { position: fixed; z-index: 3; left: 50%; bottom: 28px; transform: translateX(-50%); min-width: 126px; padding: 11px 16px; color: var(--ink); background: rgba(10, 12, 16, .76); border: 1px solid rgba(255,255,255,.28); border-radius: 999px; cursor: pointer; backdrop-filter: blur(10px); }
+.mode-toggle[aria-pressed="true"] { color: #06110e; background: var(--accent); border-color: var(--accent); }
+.little-view { position: fixed; inset: 0; z-index: 2; display: grid; place-items: center; pointer-events: none; opacity: 0; transform: scale(.9); transition: opacity 260ms ease, transform 420ms cubic-bezier(.2,.8,.2,1); }
+.little-view[hidden] { display: none; }
+.little-view.is-visible { opacity: 1; transform: scale(1); }
+.interior-canvas { width: min(88vmin, 720px); height: min(88vmin, 720px); filter: drop-shadow(0 30px 32px rgba(0,0,0,.42)); }
+.interior-canvas canvas { display: block; width: 100%; height: 100%; }
+body.little-mode .scene-shell { opacity: 0; pointer-events: none; }
+@media (max-width: 620px) { .mode-toggle { bottom: 20px; } }
+
 .disclosure-panel button {
   min-height: 42px;
   padding: 10px 16px;
@@ -618,6 +686,9 @@ code {
     min-height: 42px;
     opacity: 0.55;
   }
+
+  .interior { padding: 14px; align-items: end; }
+  .interior-panel { padding: 22px; }
 }
 
 @media (max-width: 380px) {

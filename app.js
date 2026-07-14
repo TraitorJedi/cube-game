@@ -1,11 +1,15 @@
+import * as THREE from "three";
+
 const cube = document.querySelector("#cube");
 const scene = document.querySelector("#scene");
-const toast = document.querySelector("#toast");
-const commandInput = document.querySelector("#commandInput");
-const runCommand = document.querySelector("#runCommand");
-const disclosure = document.querySelector("#disclosure");
-const disclosureClose = document.querySelector("#disclosureClose");
-const disclosureReopen = document.querySelector("#disclosureReopen");
+const modeToggle = document.querySelector("#modeToggle");
+const littleView = document.querySelector("#littleView");
+const interiorCanvas = document.querySelector("#interiorCanvas");
+
+// Interior state is deliberately logical and Yellow-relative: x/z address the
+// 4 x 4 floor and world down never follows the camera or a cube turn.
+const GRID_SIZE = 4;
+let player = { x: 1, z: 1 };
 
 const stickers = {
   front: { axis: "z", value: 1, label: "F" },
@@ -57,6 +61,79 @@ let demoTimer = 0;
 let turnQueue = Promise.resolve();
 let activeMove = null;
 let dragPreview = null;
+let littleMode = false;
+
+function createInteriorScene(host) {
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  host.append(renderer.domElement);
+
+  const scene3d = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
+  camera.position.set(7, 7, 8);
+  camera.lookAt(0, -0.4, 0);
+  scene3d.add(new THREE.HemisphereLight(0xffffff, 0x101419, 2.2));
+  const key = new THREE.DirectionalLight(0xffffff, 2.4);
+  key.position.set(4, 8, 5);
+  scene3d.add(key);
+
+  const addGridPlane = (color, position, rotation, opacity = 1) => {
+    const surface = new THREE.Mesh(
+      new THREE.PlaneGeometry(4, 4),
+      new THREE.MeshStandardMaterial({ color, roughness: 0.82, metalness: 0.02, side: THREE.DoubleSide, transparent: opacity < 1, opacity, depthWrite: opacity === 1 }),
+    );
+    surface.position.set(...position);
+    surface.rotation.set(...rotation);
+    scene3d.add(surface);
+    const points = [];
+    for (let step = -2; step <= 2; step += 1) {
+      points.push(new THREE.Vector3(-2, step, 0), new THREE.Vector3(2, step, 0));
+      points.push(new THREE.Vector3(step, -2, 0), new THREE.Vector3(step, 2, 0));
+    }
+    const grid = new THREE.LineSegments(
+      new THREE.BufferGeometry().setFromPoints(points),
+      new THREE.LineBasicMaterial({ color: 0x2f2b1b, transparent: true, opacity: opacity < 1 ? 0 : 0.72 }),
+    );
+    grid.position.copy(surface.position);
+    grid.rotation.copy(surface.rotation);
+    grid.translateZ(0.012);
+    scene3d.add(grid);
+  };
+
+  // A genuine 4×4×4 hollow chamber: Yellow floor, with Red, Blue and White inner walls.
+  addGridPlane(0xf2cf43, [0, -2, 0], [-Math.PI / 2, 0, 0]);
+  addGridPlane(0xd83a34, [-2, 0, 0], [0, Math.PI / 2, 0]);
+  // This is the foreground exterior face from the isometric camera. It stays
+  // see-through so the active piece reads as a cube without hiding its interior.
+  addGridPlane(0x246fe5, [0, 0, 2], [0, Math.PI, 0], 0.06);
+  addGridPlane(0xf7f3e7, [0, 0, -2], [0, 0, 0]);
+
+  const playerMesh = new THREE.Mesh(
+    new THREE.BoxGeometry(0.62, 0.62, 0.62),
+    new THREE.MeshStandardMaterial({ color: 0x43d9b8, emissive: 0x0e473e, emissiveIntensity: 0.35, roughness: 0.5 }),
+  );
+  scene3d.add(playerMesh);
+
+  const render = () => {
+    const { clientWidth, clientHeight } = host;
+    if (!clientWidth || !clientHeight) return;
+    renderer.setSize(clientWidth, clientHeight, false);
+    camera.aspect = clientWidth / clientHeight;
+    camera.updateProjectionMatrix();
+    renderer.render(scene3d, camera);
+  };
+  const resizeObserver = new ResizeObserver(render);
+  resizeObserver.observe(host);
+  return {
+    setPlayer({ x, z }) {
+      playerMesh.position.set(-1.5 + x, -1.69, -1.5 + z);
+      render();
+    },
+    render,
+  };
+}
+
+const interiorScene = createInteriorScene(interiorCanvas);
 
 function tileStep() {
   const vmin = Math.min(window.innerWidth, window.innerHeight);
@@ -103,7 +180,7 @@ function renderStickers(cubelet) {
     `)
     .join("");
 
-  cubelet.element.className = `cubie ${cubeletType(cubelet.position)}${Object.values(cubelet.stickers).includes("up") ? " has-white" : ""}`;
+  cubelet.element.className = `cubie ${cubeletType(cubelet.position)}${Object.values(cubelet.stickers).includes("up") ? " has-white" : ""}${cubelet.index === 26 ? " is-active-piece" : ""}`;
 }
 
 function buildCube() {
@@ -120,7 +197,7 @@ function buildCube() {
           .filter(([, sticker]) => position[sticker.axis] === sticker.value)
           .map(([face]) => face);
 
-        element.className = `cubie ${cubeletType(position)}${visibleStickers.includes("up") ? " has-white" : ""}`;
+        element.className = `cubie ${cubeletType(position)}${visibleStickers.includes("up") ? " has-white" : ""}${index === 26 ? " is-active-piece" : ""}`;
         element.dataset.index = String(index);
         element.innerHTML = visibleStickers.map((face) => stickerMarkup(face, index)).join("");
         cube.append(element);
@@ -164,14 +241,13 @@ function renderCubelets() {
 }
 
 function showToast(message) {
-  clearTimeout(toastTimer);
-  toast.textContent = message;
-  toast.classList.add("show");
-  toastTimer = setTimeout(() => toast.classList.remove("show"), 1700);
+  // The simplified play surface deliberately has no notification chrome.
 }
 
 function applyRotation() {
-  scene.style.transform = `rotateX(${rotation.x}deg) rotateY(${rotation.y}deg)`;
+  scene.style.transform = littleMode
+    ? "rotateX(-32deg) rotateY(-45deg)"
+    : `rotateX(${rotation.x}deg) rotateY(${rotation.y}deg)`;
 }
 
 function touchedStickerFromElement(element) {
@@ -483,6 +559,17 @@ function toggleDemo(button) {
   showToast("Demo running");
 }
 
+function renderInterior() {
+  interiorScene.setPlayer(player);
+}
+
+function movePlayer(key) {
+  const delta = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[key];
+  if (!delta) return;
+  player = { x: Math.max(0, Math.min(GRID_SIZE - 1, player.x + delta[0])), z: Math.max(0, Math.min(GRID_SIZE - 1, player.z + delta[1])) };
+  renderInterior();
+}
+
 document.querySelectorAll("[data-style]").forEach((button) => {
   button.addEventListener("click", () => {
     const style = button.dataset.style;
@@ -531,30 +618,38 @@ document.querySelectorAll("[data-move]").forEach((button) => {
   button.addEventListener("click", () => runMoves([button.dataset.move]));
 });
 
-function closeDisclosure() {
-  disclosure.classList.remove("is-open");
-}
-
-function openDisclosure() {
-  disclosure.classList.add("is-open");
-  disclosureClose.focus();
-}
-
-disclosureClose.addEventListener("click", closeDisclosure);
-disclosureReopen.addEventListener("click", openDisclosure);
-disclosure.addEventListener("click", (event) => {
-  if (event.target === disclosure) closeDisclosure();
-});
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") closeDisclosure();
+  if (littleMode && event.key.startsWith("Arrow")) {
+    event.preventDefault();
+    movePlayer(event.key);
+  }
 });
 
-runCommand.addEventListener("click", () => runMoves(commandInput.value));
-commandInput.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") runMoves(commandInput.value);
+modeToggle.addEventListener("click", () => {
+  if (!littleMode) {
+    littleMode = true;
+    document.body.classList.add("little-mode");
+    littleView.hidden = false;
+    modeToggle.textContent = "Big cube";
+    modeToggle.setAttribute("aria-pressed", "true");
+    renderInterior();
+    applyRotation();
+    window.setTimeout(() => {
+      if (littleMode) littleView.classList.add("is-visible");
+    }, 520);
+    return;
+  }
+  littleView.classList.remove("is-visible");
+  littleMode = false;
+  document.body.classList.remove("little-mode");
+  modeToggle.textContent = "Little cube";
+  modeToggle.setAttribute("aria-pressed", "false");
+  applyRotation();
+  window.setTimeout(() => { if (!littleMode) littleView.hidden = true; }, 520);
 });
 
 document.querySelector(".scene-shell").addEventListener("pointerdown", (event) => {
+  if (littleMode) return;
   event.preventDefault();
   if (activeMove) return;
   event.currentTarget.setPointerCapture(event.pointerId);
@@ -650,6 +745,7 @@ document.querySelector(".scene-shell").addEventListener("pointerup", endPointerG
 document.querySelector(".scene-shell").addEventListener("pointercancel", endPointerGesture);
 
 window.addEventListener("resize", renderCubelets);
+window.addEventListener("resize", applyRotation);
 
 window.cube = {
   twist(sequence) {
@@ -673,6 +769,9 @@ window.render_game_to_text = () => JSON.stringify({
   viewRotation: { ...rotation },
   activeMove,
   dragPreview,
+  activePiece: "Red / White / Blue",
+  player: { ...player, y: 0 },
+  gravity: "Yellow (world -Y)",
   moves: history.slice(),
   cubelets: cubelets.map(({ index, position, stickers: cubeletStickers }) => ({
     index,

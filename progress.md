@@ -32,3 +32,21 @@ Original prompt: I'm missing the ability to move the center rings, also some of 
 ## TODO
 
 - None for this request.
+
+## Engine foundation (current)
+
+- Replaced the legacy static explorer entry point with a Vite React + Three.js project.
+- Added a model-first `src/engine.js` with a 4 x 4 interior grid, R/W/B active-piece definition, bounded arrow-key movement, and immutable Yellow/world-down gravity.
+- Added a Three.js isometric scene with all 27 cube pieces, a zoomed R/W/B hollow chamber view, internal floor grid/walls, player cube, and pointer orbit in Cube mode.
+- Added Vercel-safe static configuration and package scripts for `npm run dev` / `npm run build`.
+- Focused browser verification: entering the chamber then pressing ArrowRight moves player `(1,0,1)` to `(2,0,1)` while reported gravity remains `Yellow (world -Y)`.
+- Restored the original explorer's charcoal/teal UI and sticker palette. Corrected the player render coordinate to `gridStart + (cellIndex + 0.5) * cellSize`, centering it within each tile rather than on a grid intersection.
+- Visual-reference follow-up: inspected `origin/main` and copied its exact sticker mapping: Front Red, Back Orange, Right Blue, Left Green, Up White, Down Yellow. The default view shows its Green / Orange / White back-left-top corner. Sticker materials are brightened slightly so their original hues survive scene lighting.
+- Added original Rubik's Cube outer-face turns in Cube mode: U/D/L/R/F/B plus inverse controls. Logical cubelets now carry both integer positions and sticker orientation, so turns update game state deterministically. Verified a face control records `R` and four `R` turns restore the solved state exactly.
+- Cube-mode parity pass against `origin/main`: added its `cube.twist(...)` command workflow, all middle-slice M/E/S moves and inverses, grid/glass material control, undo, shuffle, and reset. Browser checks confirm the 18 face/center controls and default command sequence execute; engine checks confirm command parsing and undo.
+
+## TODO
+
+- Add real Rubik's whole-cube quarter-turn logic and use it to re-settle the player after a physical rotation.
+- Convert new engine files to TypeScript when the next gameplay feature warrants the migration.
+- Complete remaining original Cube Explorer parity: direct sticker drag with continuous preview/snap, labels, cubelet filters, and auto-orbit/realign camera actions.
