@@ -1,4 +1,8 @@
 import * as THREE from "three";
+import { inject } from '@vercel/analytics';
+
+// Initialize Vercel Analytics
+inject();
 
 const cube = document.querySelector("#cube");
 const scene = document.querySelector("#scene");
