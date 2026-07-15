@@ -317,15 +317,16 @@ function createInteriorScene(host) {
   // The collectible uses the same 64³ voxel resolution as the Ape. Only the
   // voxels forming the curved fruit are populated, leaving the rest of its
   // 1 × 1 × 1 logical cell available as empty volume.
+  const bananaRadius = 7;
   for (let x = -26; x <= 26; x += 1) {
     const centerY = Math.round(0.018 * x * x - 7);
-    for (let y = centerY - 4; y <= centerY + 4; y += 1) for (let z = -4; z <= 4; z += 1) {
-      if ((y - centerY) ** 2 + z ** 2 > 16) continue;
+    for (let y = centerY - bananaRadius; y <= centerY + bananaRadius; y += 1) for (let z = -bananaRadius; z <= bananaRadius; z += 1) {
+      if ((y - centerY) ** 2 + z ** 2 > bananaRadius ** 2) continue;
       bananaVoxels[Math.abs(x) < 12 ? "gold" : "yellow"].push({ x, y, z });
     }
   }
-  for (let x = 25; x <= 30; x += 1) for (let y = 5; y <= 8; y += 1) for (let z = -2; z <= 2; z += 1) {
-    if (Math.abs(z) + Math.abs(y - 6) <= 3) bananaVoxels.stem.push({ x, y, z });
+  for (let x = 25; x <= 31; x += 1) for (let y = 7; y <= 12; y += 1) for (let z = -3; z <= 3; z += 1) {
+    if (Math.abs(z) + Math.abs(y - 9) <= 4) bananaVoxels.stem.push({ x, y, z });
   }
   const bananaDummy = new THREE.Object3D();
   Object.entries(bananaVoxels).forEach(([type, voxels]) => {
@@ -382,7 +383,7 @@ function createInteriorScene(host) {
       bananaMesh.visible = visible;
       // Set its voxel base directly on the solid's upper face. The collectible
       // still occupies the logical cell above the obstacle for gameplay.
-      if (visible) bananaMesh.position.set(-1.5 + cell.x, -1.82 + cell.y, -1.5 + cell.z);
+      if (visible) bananaMesh.position.set(-1.5 + cell.x, -1.78 + cell.y, -1.5 + cell.z);
       render();
     },
     setChamber(stickerMap) {
