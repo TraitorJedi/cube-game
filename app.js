@@ -6,10 +6,26 @@ const modeToggle = document.querySelector("#modeToggle");
 const littleView = document.querySelector("#littleView");
 const interiorCanvas = document.querySelector("#interiorCanvas");
 
-// Interior state is deliberately logical and Yellow-relative: x/z address the
-// 4 x 4 floor and world down never follows the camera or a cube turn.
+// Interior state uses a world-aligned logical 4 x 4 floor. A view change or a
+// face turn never rotates these coordinates: Yellow/world-down remains down.
 const GRID_SIZE = 4;
-let player = { x: 1, z: 1 };
+// A full 4 x 4 x 4 logical cell. The initial (x, z, y) is (1, 1, 0)
+// relative to Green, Orange, and Yellow respectively.
+let player = { x: 1, y: 0, z: 1 };
+// This cell is a real, solid part of the active chamber.  It starts in the
+// Green / Orange / Yellow corner and rotates with the R/W/B cubelet.
+let solidCell = { x: 0, y: 0, z: 0 };
+let solidFaces = { left: "green", back: "orange", down: "yellow" };
+const faceColors = {
+  red: 0xd83a34, orange: 0xf28b24, white: 0xf7f3e7,
+  yellow: 0xf2cf43, blue: 0x246fe5, green: 0x2fb56d, core: 0x16181f
+};
+const stickerFaceColors = {
+  front: "red", back: "orange", right: "blue", left: "green", up: "white", down: "yellow"
+};
+const initialInteriorFaces = Object.freeze({
+  front: "red", back: "orange", right: "blue", left: "green", up: "white", down: "yellow"
+});
 
 const stickers = {
   front: { axis: "z", value: 1, label: "F" },
@@ -36,8 +52,10 @@ const moveConfig = {
   R: { axis: "x", layer: 1, angle: -90 },
   L: { axis: "x", layer: -1, angle: 90 },
   M: { axis: "x", layer: 0, angle: 90 },
-  F: { axis: "z", layer: 1, angle: 90 },
-  B: { axis: "z", layer: -1, angle: -90 },
+  // Clockwise when viewed directly from the named face. F sends the active
+  // R/W/B corner to bottom/front/right: Blue down, Red front, White right.
+  F: { axis: "z", layer: 1, angle: -90 },
+  B: { axis: "z", layer: -1, angle: 90 },
   S: { axis: "z", layer: 0, angle: 90 }
 };
 
@@ -98,21 +116,37 @@ function createInteriorScene(host) {
     grid.rotation.copy(surface.rotation);
     grid.translateZ(0.012);
     scene3d.add(grid);
+    surface.userData.grid = grid;
+    return surface;
   };
 
   // A genuine 4×4×4 hollow chamber: Yellow floor, with Red, Blue and White inner walls.
-  addGridPlane(0xf2cf43, [0, -2, 0], [-Math.PI / 2, 0, 0]);
-  addGridPlane(0xd83a34, [-2, 0, 0], [0, Math.PI / 2, 0]);
-  // This is the foreground exterior face from the isometric camera. It stays
-  // see-through so the active piece reads as a cube without hiding its interior.
-  addGridPlane(0x246fe5, [0, 0, 2], [0, Math.PI, 0], 0.06);
-  addGridPlane(0xf7f3e7, [0, 0, -2], [0, 0, 0]);
+  // The physical down direction is fixed to initial Yellow/world -Y. The
+  // sticker facing it after a turn becomes this chamber floor.
+  // Each plane is fixed to a world direction. Its color is taken from the
+  // active R/W/B cubelet's sticker currently facing that direction.
+  const chamberFaces = {
+    down: addGridPlane(faceColors.yellow, [0, -2, 0], [-Math.PI / 2, 0, 0]),
+    up: addGridPlane(faceColors.core, [0, 2, 0], [Math.PI / 2, 0, 0]),
+    right: addGridPlane(faceColors.core, [2, 0, 0], [0, Math.PI / 2, 0]),
+    left: addGridPlane(faceColors.core, [-2, 0, 0], [0, -Math.PI / 2, 0]),
+    front: addGridPlane(faceColors.core, [0, 0, 2], [0, 0, 0]),
+    back: addGridPlane(faceColors.core, [0, 0, -2], [0, Math.PI, 0]),
+  };
 
   const playerMesh = new THREE.Mesh(
     new THREE.BoxGeometry(0.62, 0.62, 0.62),
     new THREE.MeshStandardMaterial({ color: 0x43d9b8, emissive: 0x0e473e, emissiveIntensity: 0.35, roughness: 0.5 }),
   );
   scene3d.add(playerMesh);
+
+  const solidMaterials = Array.from({ length: 6 }, () => new THREE.MeshStandardMaterial({
+    color: faceColors.core, roughness: 0.8, metalness: 0.02,
+  }));
+  const solidMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), solidMaterials);
+  scene3d.add(solidMesh);
+  const materialIndexForSide = { right: 0, left: 1, up: 2, down: 3, front: 4, back: 5 };
+  const oppositeSide = { right: "left", left: "right", up: "down", down: "up", front: "back", back: "front" };
 
   const render = () => {
     const { clientWidth, clientHeight } = host;
@@ -125,8 +159,38 @@ function createInteriorScene(host) {
   const resizeObserver = new ResizeObserver(render);
   resizeObserver.observe(host);
   return {
-    setPlayer({ x, z }) {
-      playerMesh.position.set(-1.5 + x, -1.69, -1.5 + z);
+    setPlayer({ x, y, z }) {
+      playerMesh.position.set(-1.5 + x, -1.69 + y, -1.5 + z);
+      render();
+    },
+    setSolidCell(cell, faces) {
+      solidMesh.position.set(-1.5 + cell.x, -1.5 + cell.y, -1.5 + cell.z);
+      solidMaterials.forEach((material) => material.color.setHex(faceColors.core));
+      // The faces visible from the room are the inward continuation of the
+      // coloured outer walls occupied by this solid corner cell.
+      Object.entries(faces).forEach(([outerSide, colorName]) => {
+        const innerSide = oppositeSide[outerSide];
+        solidMaterials[materialIndexForSide[innerSide]].color.setHex(faceColors[colorName] ?? faceColors.core);
+      });
+      render();
+    },
+    setChamber(stickerMap) {
+      Object.entries(chamberFaces).forEach(([side, surface]) => {
+        // Before its first turn, the active corner has no outward world-down
+        // sticker, so its interior floor starts Yellow. Thereafter, the
+        // current world-down sticker is the floor.
+        const sticker = stickerMap?.[side];
+        const colorName = sticker && (faceColors[sticker] ? sticker : stickerFaceColors[sticker]);
+        const color = faceColors[colorName ?? (side === "down" ? "yellow" : "core")];
+        const cutaway = side === "front" || side === "right" || side === "up";
+        surface.material.color.setHex(color);
+        surface.material.emissive.setHex(color);
+        surface.material.emissiveIntensity = 0.06;
+        surface.material.transparent = cutaway;
+        surface.material.opacity = cutaway ? 0 : 1;
+        surface.material.depthWrite = !cutaway;
+        surface.userData.grid.material.opacity = cutaway ? 0 : 0.72;
+      });
       render();
     },
     render,
@@ -206,6 +270,9 @@ function buildCube() {
           element,
           position,
           stickers: Object.fromEntries(visibleStickers.map((face) => [face, face])),
+          // The hollow interior has all six color faces, even when this
+          // exterior cubelet only exposes three stickers.
+          interiorFaces: { ...initialInteriorFaces },
           index
         });
         index += 1;
@@ -393,14 +460,18 @@ function finishFaceDrag(preview, targetAngle) {
 
   setTimeout(() => {
     if (targetAngle !== 0) {
+      const activePieceTurned = preview.affected.some((cubelet) => cubelet.index === 26);
       preview.affected.forEach((cubelet) => {
         cubelet.position = rotatePosition(cubelet.position, preview.axis, targetAngle);
         cubelet.stickers = rotateStickerSides(cubelet.stickers, preview.axis, targetAngle);
+        cubelet.interiorFaces = rotateStickerSides(cubelet.interiorFaces, preview.axis, targetAngle);
         renderStickers(cubelet);
       });
+      if (activePieceTurned) rotatePlayerWithActivePiece(preview.axis, targetAngle);
       history.push(move);
     }
     clearSlicePreview(preview);
+    if (littleMode) renderInterior();
     activeMove = null;
   }, duration);
 }
@@ -463,6 +534,7 @@ function animateMove(move, record = true) {
 
   const { axis, layer, angle } = details;
   const affected = cubelets.filter((cubelet) => cubelet.position[axis] === layer);
+  const activePieceTurned = affected.some((cubelet) => cubelet.index === 26);
   const turn = axisTransform(axis, visualAngle(axis, angle));
 
   affected.forEach((cubelet) => {
@@ -479,11 +551,14 @@ function animateMove(move, record = true) {
       affected.forEach((cubelet) => {
         cubelet.position = rotatePosition(cubelet.position, axis, angle);
         cubelet.stickers = rotateStickerSides(cubelet.stickers, axis, angle);
+        cubelet.interiorFaces = rotateStickerSides(cubelet.interiorFaces, axis, angle);
         cubelet.element.style.transition = "none";
         cubelet.element.classList.remove("is-turning");
         renderStickers(cubelet);
       });
+      if (activePieceTurned) rotatePlayerWithActivePiece(axis, angle);
       renderCubelets();
+      if (littleMode) renderInterior();
       cube.offsetHeight;
       affected.forEach((cubelet) => {
         cubelet.element.style.transition = "";
@@ -560,13 +635,71 @@ function toggleDemo(button) {
 }
 
 function renderInterior() {
+  interiorScene.setChamber(activeCubelet()?.interiorFaces);
+  interiorScene.setSolidCell(solidCell, solidFaces);
   interiorScene.setPlayer(player);
+}
+
+function activeCubelet() {
+  return cubelets.find((cubelet) => cubelet.index === 26);
+}
+
+function activeInteriorFloorFace() {
+  // `down` is the immutable world -Y direction, not the current camera view.
+  // Interior faces are stored as colour names, while exterior stickers use
+  // side names (for example, `right` means Blue).
+  const face = activeCubelet()?.interiorFaces?.down ?? activeCubelet()?.stickers.down;
+  return stickerFaceColors[face] ?? face ?? "yellow";
+}
+
+function rotatePlayerWithActivePiece(axis, angle) {
+  // Rotate the complete 4 x 4 x 4 cells about the chamber centre. Once the
+  // turn finishes, world-down settles the player onto the lowest floor at
+  // that lateral location, including the rotating solid corner cell.
+  const turns = ((angle / 90) % 4 + 4) % 4;
+  for (let turn = 0; turn < turns; turn += 1) {
+    player = rotateInteriorCell(player, axis);
+    solidCell = rotateInteriorCell(solidCell, axis);
+    solidFaces = rotateStickerSides(solidFaces, axis, 90);
+  }
+  player = settlePlayerOnFloor(player);
+}
+
+function rotateInteriorCell(cell, axis) {
+  const { x, y, z } = cell;
+  if (axis === "x") return { x, y: GRID_SIZE - 1 - z, z: y };
+  if (axis === "y") return { x: z, y, z: GRID_SIZE - 1 - x };
+  return { x: GRID_SIZE - 1 - y, y: x, z };
+}
+
+function floorHeightAt(x, z) {
+  return solidCell.x === x && solidCell.z === z ? solidCell.y + 1 : 0;
+}
+
+function settlePlayerOnFloor(cell) {
+  return { ...cell, y: floorHeightAt(cell.x, cell.z) };
+}
+
+function describePlayerWorldCell() {
+  // `left`, `back`, and `down` are the three faces which define the occupied
+  // world cell. Their colours change with the R/W/B piece's orientation.
+  const faces = activeCubelet()?.interiorFaces ?? initialInteriorFaces;
+  return {
+    relativeTo: [faces.left, faces.back, faces.down],
+    position: [player.x, player.z, player.y],
+    floor: activeInteriorFloorFace()
+  };
 }
 
 function movePlayer(key) {
   const delta = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[key];
   if (!delta) return;
-  player = { x: Math.max(0, Math.min(GRID_SIZE - 1, player.x + delta[0])), z: Math.max(0, Math.min(GRID_SIZE - 1, player.z + delta[1])) };
+  const x = Math.max(0, Math.min(GRID_SIZE - 1, player.x + delta[0]));
+  const z = Math.max(0, Math.min(GRID_SIZE - 1, player.z + delta[1]));
+  const targetFloor = floorHeightAt(x, z);
+  // Lateral moves can drop to a lower floor.  A one-cell raised floor cannot
+  // be climbed yet, and its occupied cell therefore blocks the player.
+  if (targetFloor <= player.y) player = { x, z, y: targetFloor };
   renderInterior();
 }
 
@@ -770,8 +903,12 @@ window.render_game_to_text = () => JSON.stringify({
   activeMove,
   dragPreview,
   activePiece: "Red / White / Blue",
-  player: { ...player, y: 0 },
+  player: { ...player },
+  playerWorldCell: describePlayerWorldCell(),
+  solidCell: { ...solidCell },
+  solidFloorHeight: floorHeightAt(player.x, player.z),
   gravity: "Yellow (world -Y)",
+  interiorFloor: activeInteriorFloorFace(),
   moves: history.slice(),
   cubelets: cubelets.map(({ index, position, stickers: cubeletStickers }) => ({
     index,

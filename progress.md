@@ -31,7 +31,7 @@ Original prompt: I'm missing the ability to move the center rings, also some of 
 
 ## TODO
 
-- None for this request.
+- Solid corner-cell follow-up: the Green/Orange/Yellow `(0,0,0)` chamber cell is now a rotating collision block. A turn settles the player on its raised floor; lateral moves may drop but do not climb it yet. `F'` from `(3,0,0)` deterministically yields `(3,0,1)` relative to White/Orange/Green; moving laterally from the raised tile drops to y=0. Build passed. Browser check showed the colored G/O/Y corner block, blocked attempted climb, and no console errors.
 
 ## Engine foundation (current)
 
@@ -47,6 +47,16 @@ Original prompt: I'm missing the ability to move the center rings, also some of 
 
 ## TODO
 
+- Mini chamber is now a camera-facing cutaway: world front, right, and top planes (including their grids) are transparent. It displays the relative bottom, back, and left interior faces, using a full six-face orientation map that rotates with the active R/W/B cubelet.
+- Fixed mini-chamber face colors after a visual check: live cubelet stickers are stored as face names (such as `right`), so the renderer now maps those names explicitly to palette colors (Blue) before applying materials.
+- Mini-chamber orientation now refreshes after every completed face, middle-slice, inverse, double, or face-drag turn in the live `app.js` entry point. All six planes are colored from R/W/B's current world-facing sticker map; Yellow remains only the initial un-stickered world-down fallback.
+- Active chamber floor now derives from the R/W/B cubelet's current world-down sticker in the production explorer. World gravity remains immutable Yellow/world -Y, so the chamber floor correctly becomes Blue when Blue points down after cube turns.
+- Corrected clockwise Front turn handedness: `F` now sends R/W/B to bottom/front/right with White on right, Red on front, and Blue on the world-down floor. The chamber now follows that piece's transformed slot and renders its current world-down sticker as the floor, while player x/z remain fixed on the world Blue/Green and Red/Orange axes.
+- Verified the Front result and its inverse with a deterministic engine check, including preserved player x/z. `npm.cmd run build` passes; the local Vite response is HTTP 200. Visual browser capture was unavailable because the installed browser client is version-mismatched and the fallback package cannot write to the system npm cache in this sandbox.
+- Fixed the missing visual follow-through in Interior mode: its camera now orbits the transformed active R/W/B chamber rather than the original cube origin.
+- Exposed the live explorer's world-cell description: the player grid stays world-aligned through a turn, so after `U` the initial cell reports the Yellow face, two cells from Red, and one from Green. A focused browser run of `window.cube.twist("U")` then Interior mode showed the stationary player and R/W/B at `(-1, 1, 1)` with Red-left/Blue-front/White-up; no console errors.
+- Corrected the U-turn follow-through: when a completed turn includes R/W/B, its interior player cell rotates with the cubelet. The initial U turn now moves the player from `(1, 1)` to `(2, 1)` on the Yellow grid; this is covered for button/command turns and completed face drags. Browser verification showed the visible move and no console errors.
+- Expanded the live player state to a 4 x 4 x 4 world cell (64 positions). Completed turns rotate all three axes of that cell, then settle its y coordinate to world-down. Verified the requested Front result: `Green/Orange/Yellow (1,1,0)` becomes `Yellow/Orange/Blue (0,1,0)` on a Blue floor. Axis checks for U, R, and F all settle to y=0 without console errors.
 - Add real Rubik's whole-cube quarter-turn logic and use it to re-settle the player after a physical rotation.
 - Convert new engine files to TypeScript when the next gameplay feature warrants the migration.
 - Complete remaining original Cube Explorer parity: direct sticker drag with continuous preview/snap, labels, cubelet filters, and auto-orbit/realign camera actions.

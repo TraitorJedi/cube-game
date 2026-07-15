@@ -1,6 +1,7 @@
 export const GRID_SIZE = 4;
 export const INITIAL_GRAVITY_FACE = "yellow";
 export const ACTIVE_PIECE = Object.freeze({ id: "1,1,1", colors: ["red", "white", "blue"] });
+export const INITIAL_SOLID_CELL = Object.freeze({ x: 0, y: 0, z: 0 });
 
 export const FACE_COLORS = Object.freeze({
   front: "red", back: "orange", right: "blue", left: "green", up: "white", down: "yellow",
@@ -13,7 +14,10 @@ const FACE_VECTORS = Object.freeze({
 export const MOVE_CONFIG = Object.freeze({
   U: { axis: "y", layer: 1, angle: -90 }, D: { axis: "y", layer: -1, angle: 90 },
   R: { axis: "x", layer: 1, angle: -90 }, L: { axis: "x", layer: -1, angle: 90 },
-  F: { axis: "z", layer: 1, angle: 90 }, B: { axis: "z", layer: -1, angle: -90 },
+  // Clockwise is viewed while looking directly at the named outer face. In
+  // particular, F sends the initial R/W/B corner to bottom/front/right:
+  // White -> right, Red -> front, Blue -> down.
+  F: { axis: "z", layer: 1, angle: -90 }, B: { axis: "z", layer: -1, angle: 90 },
   M: { axis: "x", layer: 0, angle: 90 }, E: { axis: "y", layer: 0, angle: 90 }, S: { axis: "z", layer: 0, angle: 90 },
 });
 
@@ -62,13 +66,41 @@ export function applyMove(pieces, move) {
 export function createGameState() {
   return {
     mode: "cube", cube: createRubiksCube(), moves: [], history: [], material: "grid", activePiece: ACTIVE_PIECE,
-    // Logical grid coordinates: x grows right, z grows toward Blue; y=0 is the Yellow-relative floor.
-    player: { x: 1, y: 0, z: 1 }, gravity: { x: 0, y: -1, z: 0, face: INITIAL_GRAVITY_FACE },
+    // These are world-horizontal grid coordinates: x is Blue/Green (right/left)
+    // and z is Red/Orange (front/back). They do not rotate with the camera.
+    // y is always settled to the active chamber's world-down interior face.
+    player: { x: 1, y: 0, z: 1 }, solidCell: { ...INITIAL_SOLID_CELL },
+    gravity: { x: 0, y: -1, z: 0, face: INITIAL_GRAVITY_FACE },
   };
 }
 
+export function getActivePiece(pieces) {
+  return pieces.find((piece) => piece.id === ACTIVE_PIECE.id);
+}
+
+export function getFloorFace(piece) {
+  // Stickers are keyed by their current world direction, so the lower-facing
+  // sticker identifies the active chamber's interior floor under Yellow gravity.
+  return piece?.stickers.down ?? null;
+}
+
 export function turnCube(state, move) {
-  return { ...state, cube: applyMove(state.cube, move), moves: [...state.moves, move].slice(-16), history: [...state.history, move] };
+  const cube = applyMove(state.cube, move);
+  const config = MOVE_CONFIG[move.replace(/[2']/g, "")];
+  const active = getActivePiece(state.cube);
+  const activeTurns = config && active?.position[config.axis] === config.layer;
+  const angle = move.endsWith("'") ? -config?.angle : config?.angle;
+  const turns = move.endsWith("2") ? 2 : 1;
+  let player = state.player;
+  let solidCell = state.solidCell;
+  if (activeTurns) {
+    for (let turn = 0; turn < turns; turn += 1) {
+      player = rotateInteriorCell(player, config.axis, angle);
+      solidCell = rotateInteriorCell(solidCell, config.axis, angle);
+    }
+    player = settlePlayer(player, solidCell);
+  }
+  return { ...state, cube, player, solidCell, moves: [...state.moves, move].slice(-16), history: [...state.history, move] };
 }
 
 export function parseMoves(input) {
@@ -79,13 +111,32 @@ export function undoCube(state) {
   const last = state.history.at(-1);
   if (!last) return state;
   const inverse = last.endsWith("2") ? last : last.endsWith("'") ? last.slice(0, -1) : `${last}'`;
-  return { ...state, cube: applyMove(state.cube, inverse), history: state.history.slice(0, -1), moves: [...state.moves, inverse].slice(-16) };
+  return { ...state, cube: applyMove(state.cube, inverse), player: settlePlayer(state.player), history: state.history.slice(0, -1), moves: [...state.moves, inverse].slice(-16) };
 }
 
-export function movePlayer(player, key) {
+export function movePlayer(player, key, solidCell = INITIAL_SOLID_CELL) {
   const delta = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[key];
   if (!delta) return player;
-  return { x: Math.max(0, Math.min(GRID_SIZE - 1, player.x + delta[0])), y: 0, z: Math.max(0, Math.min(GRID_SIZE - 1, player.z + delta[1])) };
+  const x = Math.max(0, Math.min(GRID_SIZE - 1, player.x + delta[0]));
+  const z = Math.max(0, Math.min(GRID_SIZE - 1, player.z + delta[1]));
+  const floor = floorHeightAt(x, z, solidCell);
+  return floor <= player.y ? { x, y: floor, z } : player;
 }
 
-export function settlePlayer(player) { return { ...player, y: 0 }; }
+function rotateInteriorCell(cell, axis, angle) {
+  const turns = ((angle / 90) % 4 + 4) % 4;
+  let next = cell;
+  for (let turn = 0; turn < turns; turn += 1) {
+    const { x, y, z } = next;
+    if (axis === "x") next = { x, y: GRID_SIZE - 1 - z, z: y };
+    if (axis === "y") next = { x: z, y, z: GRID_SIZE - 1 - x };
+    if (axis === "z") next = { x: GRID_SIZE - 1 - y, y: x, z };
+  }
+  return next;
+}
+
+export function floorHeightAt(x, z, solidCell = INITIAL_SOLID_CELL) {
+  return solidCell.x === x && solidCell.z === z ? solidCell.y + 1 : 0;
+}
+
+export function settlePlayer(player, solidCell = INITIAL_SOLID_CELL) { return { ...player, y: floorHeightAt(player.x, player.z, solidCell) }; }
