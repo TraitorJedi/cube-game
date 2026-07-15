@@ -495,7 +495,41 @@ code {
 .interior-canvas { width: min(88vmin, 720px); height: min(88vmin, 720px); filter: drop-shadow(0 30px 32px rgba(0,0,0,.42)); }
 .interior-canvas canvas { display: block; width: 100%; height: 100%; }
 body.little-mode .scene-shell { opacity: 0; pointer-events: none; }
-@media (max-width: 620px) { .game-brand { top: 16px; left: 18px; } .mode-toggle { bottom: 20px; } }
+.touch-move-controls {
+  position: fixed;
+  z-index: 4;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(88px, calc(env(safe-area-inset-bottom) + 72px));
+  display: none;
+  grid-template: repeat(3, 52px) / repeat(3, 52px);
+  gap: 5px;
+  pointer-events: auto;
+  touch-action: none;
+}
+.touch-move {
+  display: grid;
+  place-items: center;
+  min-width: 52px;
+  min-height: 52px;
+  padding: 0;
+  color: #f7fffc;
+  font-size: 1.35rem;
+  line-height: 1;
+  background: rgba(8, 17, 20, .84);
+  border: 1px solid rgba(255, 255, 255, .34);
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .3);
+  -webkit-tap-highlight-color: transparent;
+}
+.touch-move:active { color: #06110e; background: var(--accent); border-color: var(--accent); transform: scale(.94); }
+.touch-move:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+.touch-move-up { grid-area: 1 / 2; }
+.touch-move-left { grid-area: 2 / 1; }
+.touch-move-right { grid-area: 2 / 3; }
+.touch-move-down { grid-area: 3 / 2; }
+body.little-mode .touch-move-controls { display: grid; }
+@media (hover: hover) and (pointer: fine) { .touch-move-controls { display: none !important; } }
+@media (max-width: 620px) { .game-brand { top: 16px; left: 18px; } .mode-toggle { bottom: max(20px, env(safe-area-inset-bottom)); } }
 
 .disclosure-panel button {
   min-height: 42px;

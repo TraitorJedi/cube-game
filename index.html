@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Cubesque-Ape</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><rect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%2343d9b8%22/><path d=%22M8 8h7v7H8zm9 0h7v7h-7zM8 17h7v7H8zm9 0h7v7h-7z%22 fill=%22%23090a0d%22/></svg>">
-    <link rel="stylesheet" href="styles.css?v=interior-7">
+    <link rel="stylesheet" href="styles.css?v=touch-controls-1">
   </head>
   <body>
     <main class="stage" aria-label="Cubesque-Ape isometric cube puzzle">
@@ -18,6 +18,12 @@
       <section class="little-view" id="littleView" aria-label="Active Red White Blue cube-piece interior" hidden>
         <div class="interior-canvas" id="interiorCanvas" aria-label="Four by four by four active-piece interior"></div>
       </section>
+      <nav class="touch-move-controls" aria-label="Move the Ape">
+        <button type="button" class="touch-move touch-move-up" data-player-move="ArrowUp" aria-label="Move Ape up">▲</button>
+        <button type="button" class="touch-move touch-move-left" data-player-move="ArrowLeft" aria-label="Move Ape left">◀</button>
+        <button type="button" class="touch-move touch-move-right" data-player-move="ArrowRight" aria-label="Move Ape right">▶</button>
+        <button type="button" class="touch-move touch-move-down" data-player-move="ArrowDown" aria-label="Move Ape down">▼</button>
+      </nav>
       <button class="mode-toggle" id="modeToggle" type="button" aria-pressed="false">Little cube</button>
     </main>
     <script type="module" src="app.js"></script>

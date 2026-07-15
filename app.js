@@ -942,6 +942,14 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
+document.querySelectorAll("[data-player-move]").forEach((button) => {
+  button.addEventListener("pointerdown", (event) => {
+    if (!littleMode) return;
+    event.preventDefault();
+    movePlayer(button.dataset.playerMove);
+  });
+});
+
 modeToggle.addEventListener("click", () => {
   if (!littleMode) {
     littleMode = true;

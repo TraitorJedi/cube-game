@@ -2,6 +2,9 @@ Original prompt: I'm missing the ability to move the center rings, also some of 
 
 ## Progress
 
+- Added a touch-only directional pad in the live `index.html` / `app.js` interior view. The four large buttons call the same `movePlayer` path as the arrow keys, remain keyboard-accessible, respect safe-area insets, and only appear while Little cube (Interior) mode is active on touch/coarse-pointer devices.
+- Verified the pad in a 393 x 737 touch viewport: it is visible and clear of the mode button, and each direction moves the initial Ape position one matching logical cell. Inspected `touch-controls-mobile.png`; production build passes. The standard web-game Playwright client remains unavailable because its `playwright` package is not installed; browser-runtime verification used the local Chrome executable instead. The only console resource error is the pre-existing blocked Vercel Analytics debug-script request in the sandbox.
+
 - Door/obstacle follow-up: the live `app.js` now defines exactly two doors in Green/Orange/Yellow face-relative coordinates: R/W/B Orange `(3,0,0)` and W/B Red `(3,3,0)`. Their current wall cell and directional interaction are resolved from each cubelet's rotating interior-face map, and a transfer only occurs while both openings are physically touching. The sole obstacle remains attached to R/W/B even when another piece is active or R/W/B turns while inactive.
 
 - Interior visibility rule: Front, Right, and Up are permanent cutaway faces. Doors can still logically rotate onto them, but their wall panels are never rendered; only Back, Left, and Down may render a wall or doorway.
