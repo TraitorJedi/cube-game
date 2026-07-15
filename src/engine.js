@@ -119,7 +119,8 @@ export function movePlayer(player, key, solidCell = INITIAL_SOLID_CELL) {
   if (!delta) return player;
   const x = Math.max(0, Math.min(GRID_SIZE - 1, player.x + delta[0]));
   const z = Math.max(0, Math.min(GRID_SIZE - 1, player.z + delta[1]));
-  const floor = floorHeightAt(x, z, solidCell);
+  if (isSolidAt(x, player.y, z, solidCell)) return player;
+  const floor = floorHeightAt(x, z, solidCell, player.y);
   return floor <= player.y ? { x, y: floor, z } : player;
 }
 
@@ -135,8 +136,12 @@ function rotateInteriorCell(cell, axis, angle) {
   return next;
 }
 
-export function floorHeightAt(x, z, solidCell = INITIAL_SOLID_CELL) {
-  return solidCell.x === x && solidCell.z === z ? solidCell.y + 1 : 0;
+export function isSolidAt(x, y, z, solidCell = INITIAL_SOLID_CELL) {
+  return solidCell.x === x && solidCell.y === y && solidCell.z === z;
 }
 
-export function settlePlayer(player, solidCell = INITIAL_SOLID_CELL) { return { ...player, y: floorHeightAt(player.x, player.z, solidCell) }; }
+export function floorHeightAt(x, z, solidCell = INITIAL_SOLID_CELL, fallingFromY = GRID_SIZE - 1) {
+  return solidCell.x === x && solidCell.z === z && solidCell.y <= fallingFromY ? solidCell.y + 1 : 0;
+}
+
+export function settlePlayer(player, solidCell = INITIAL_SOLID_CELL) { return { ...player, y: floorHeightAt(player.x, player.z, solidCell, player.y) }; }

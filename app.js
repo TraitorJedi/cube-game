@@ -676,12 +676,21 @@ function rotateInteriorCell(cell, axis) {
   return { x: GRID_SIZE - 1 - y, y: x, z };
 }
 
-function floorHeightAt(x, z) {
-  return solidCell.x === x && solidCell.z === z ? solidCell.y + 1 : 0;
+function isSolidAt(x, y, z) {
+  return solidCell.x === x && solidCell.y === y && solidCell.z === z;
+}
+
+function floorHeightAt(x, z, fallingFromY) {
+  // A solid only becomes a floor when it is below (or at collision height
+  // with) the player. A cube hanging above the player leaves the floor open,
+  // so the player can walk underneath it.
+  return solidCell.x === x && solidCell.z === z && solidCell.y <= fallingFromY
+    ? solidCell.y + 1
+    : 0;
 }
 
 function settlePlayerOnFloor(cell) {
-  return { ...cell, y: floorHeightAt(cell.x, cell.z) };
+  return { ...cell, y: floorHeightAt(cell.x, cell.z, cell.y) };
 }
 
 function describePlayerWorldCell() {
@@ -700,7 +709,10 @@ function movePlayer(key) {
   if (!delta) return;
   const x = Math.max(0, Math.min(GRID_SIZE - 1, player.x + delta[0]));
   const z = Math.max(0, Math.min(GRID_SIZE - 1, player.z + delta[1]));
-  const targetFloor = floorHeightAt(x, z);
+  // The player may move below a suspended block. It is blocked only by a
+  // block occupying the same logical cell at the target lateral position.
+  if (isSolidAt(x, player.y, z)) return;
+  const targetFloor = floorHeightAt(x, z, player.y);
   // Lateral moves can drop to a lower floor.  A one-cell raised floor cannot
   // be climbed yet, and its occupied cell therefore blocks the player.
   if (targetFloor <= player.y) player = { x, z, y: targetFloor };
@@ -910,7 +922,7 @@ window.render_game_to_text = () => JSON.stringify({
   player: { ...player },
   playerWorldCell: describePlayerWorldCell(),
   solidCell: { ...solidCell },
-  solidFloorHeight: floorHeightAt(player.x, player.z),
+  solidFloorHeight: floorHeightAt(player.x, player.z, player.y),
   gravity: "Yellow (world -Y)",
   interiorFloor: activeInteriorFloorFace(),
   moves: history.slice(),

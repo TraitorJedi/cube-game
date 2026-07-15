@@ -32,6 +32,7 @@ Original prompt: I'm missing the ability to move the center rings, also some of 
 ## TODO
 
 - Solid corner-cell follow-up: the Green/Orange/Yellow `(0,0,0)` chamber cell is now a rotating collision block. A turn settles the player on its raised floor; lateral moves may drop but do not climb it yet. `F'` from `(3,0,0)` deterministically yields `(3,0,1)` relative to White/Orange/Green; moving laterally from the raised tile drops to y=0. Build passed. Browser check showed the colored G/O/Y corner block, blocked attempted climb, and no console errors.
+- Fixed the hanging-solid follow-up: collision floors are now height-aware. A solid at `(0,3,0)` no longer blocks floor-level movement from `(1,0,0)` to `(0,0,0)`, while a solid at `(0,0,0)` still blocks that move. The prior F' raised-floor and lateral-drop cases remain covered by a deterministic check; build and browser visual check passed with no console errors.
 
 ## Engine foundation (current)
 
