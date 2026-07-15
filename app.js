@@ -27,6 +27,11 @@ let player = { x: 1, y: 0, z: 1 };
 // piece, rather than to whichever piece happens to be active.
 let solidCell = { x: 0, y: 0, z: 0 };
 let solidFaces = { left: "green", back: "orange", down: "yellow" };
+// The banana is one Yellow-relative cell above the Green / Orange / Yellow
+// corner obstacle: G/O/Y (0, 0, 1). It travels with that obstacle's piece.
+let bananaCell = { x: 0, y: 1, z: 0 };
+let bananaCollected = false;
+let levelComplete = false;
 const faceColors = {
   red: 0xd83a34, orange: 0xf28b24, white: 0xf7f3e7,
   yellow: 0xf2cf43, blue: 0x246fe5, green: 0x2fb56d, core: 0x16181f
@@ -302,6 +307,40 @@ function createInteriorScene(host) {
   }));
   const solidMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), solidMaterials);
   scene3d.add(solidMesh);
+  const bananaYellow = new THREE.MeshStandardMaterial({ color: 0xf7c928, roughness: 0.58, metalness: 0.08, emissive: 0x4a2d00, emissiveIntensity: 0.35 });
+  const bananaGold = new THREE.MeshStandardMaterial({ color: 0xffe57a, roughness: 0.45, metalness: 0.18, emissive: 0x6b4300, emissiveIntensity: 0.22 });
+  const bananaStem = new THREE.MeshStandardMaterial({ color: 0x8a5a20, roughness: 0.8 });
+  const bananaMesh = new THREE.Group();
+  const bananaVoxelSize = 1 / 64;
+  const bananaVoxel = new THREE.BoxGeometry(bananaVoxelSize * 0.96, bananaVoxelSize * 0.96, bananaVoxelSize * 0.96);
+  const bananaVoxels = { yellow: [], gold: [], stem: [] };
+  // The collectible uses the same 64³ voxel resolution as the Ape. Only the
+  // voxels forming the curved fruit are populated, leaving the rest of its
+  // 1 × 1 × 1 logical cell available as empty volume.
+  for (let x = -26; x <= 26; x += 1) {
+    const centerY = Math.round(0.018 * x * x - 7);
+    for (let y = centerY - 4; y <= centerY + 4; y += 1) for (let z = -4; z <= 4; z += 1) {
+      if ((y - centerY) ** 2 + z ** 2 > 16) continue;
+      bananaVoxels[Math.abs(x) < 12 ? "gold" : "yellow"].push({ x, y, z });
+    }
+  }
+  for (let x = 25; x <= 30; x += 1) for (let y = 5; y <= 8; y += 1) for (let z = -2; z <= 2; z += 1) {
+    if (Math.abs(z) + Math.abs(y - 6) <= 3) bananaVoxels.stem.push({ x, y, z });
+  }
+  const bananaDummy = new THREE.Object3D();
+  Object.entries(bananaVoxels).forEach(([type, voxels]) => {
+    const material = type === "stem" ? bananaStem : type === "gold" ? bananaGold : bananaYellow;
+    const mesh = new THREE.InstancedMesh(bananaVoxel, material, voxels.length);
+    voxels.forEach((voxel, index) => {
+      bananaDummy.position.set(voxel.x / 64, voxel.y / 64, voxel.z / 64);
+      bananaDummy.updateMatrix();
+      mesh.setMatrixAt(index, bananaDummy.matrix);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+    bananaMesh.add(mesh);
+  });
+  bananaMesh.rotation.z = -0.18;
+  scene3d.add(bananaMesh);
   const materialIndexForSide = { right: 0, left: 1, up: 2, down: 3, front: 4, back: 5 };
   const oppositeSide = { right: "left", left: "right", up: "down", down: "up", front: "back", back: "front" };
 
@@ -337,6 +376,13 @@ function createInteriorScene(host) {
         const innerSide = oppositeSide[outerSide];
         solidMaterials[materialIndexForSide[innerSide]].color.setHex(faceColors[colorName] ?? faceColors.core);
       });
+      render();
+    },
+    setBananaCell(cell, visible = true) {
+      bananaMesh.visible = visible;
+      // Set its voxel base directly on the solid's upper face. The collectible
+      // still occupies the logical cell above the obstacle for gameplay.
+      if (visible) bananaMesh.position.set(-1.5 + cell.x, -1.82 + cell.y, -1.5 + cell.z);
       render();
     },
     setChamber(stickerMap) {
@@ -822,6 +868,7 @@ function toggleDemo(button) {
 function renderInterior() {
   interiorScene.setChamber(activeCubelet()?.interiorFaces);
   interiorScene.setSolidCell(solidCell, solidFaces, activePieceIndex === 26);
+  interiorScene.setBananaCell(bananaCell, activePieceIndex === 26 && !bananaCollected);
   interiorScene.setPlayer(player);
 }
 
@@ -869,6 +916,7 @@ function rotateObstacleWithPiece(axis, angle) {
   const turns = ((angle / 90) % 4 + 4) % 4;
   for (let turn = 0; turn < turns; turn += 1) {
     solidCell = rotateInteriorCell(solidCell, axis);
+    bananaCell = rotateInteriorCell(bananaCell, axis);
     solidFaces = rotateStickerSides(solidFaces, axis, 90);
   }
 }
@@ -945,6 +993,7 @@ function doorsTouch(door, target) {
 }
 
 function movePlayer(key) {
+  if (levelComplete) return;
   const door = doorForPiece(activePieceIndex);
   const targetDoor = DOORS.find((candidate) => candidate !== door);
   const activePiece = activeCubelet();
@@ -967,7 +1016,17 @@ function movePlayer(key) {
   // Lateral moves can drop to a lower floor.  A one-cell raised floor cannot
   // be climbed yet, and its occupied cell therefore blocks the player.
   if (targetFloor <= player.y) player = { x, z, y: targetFloor };
+  collectBananaIfReached();
   renderInterior();
+}
+
+function collectBananaIfReached() {
+  if (bananaCollected || activePieceIndex !== 26 || !sameCell(player, bananaCell)) return;
+  bananaCollected = true;
+  levelComplete = true;
+  renderInterior();
+  victoryModal.removeAttribute("hidden");
+  victoryModal.querySelector("#victoryContinue").focus();
 }
 
 document.querySelectorAll("[data-style]").forEach((button) => {
@@ -1038,6 +1097,8 @@ const settingsToggle = document.querySelector("#settingsToggle");
 const settingsModal = document.querySelector("#settingsModal");
 const settingsClose = document.querySelector("#settingsClose");
 const settingsBackdrop = document.querySelector("#settingsBackdrop");
+const victoryModal = document.querySelector("#victoryModal");
+const victoryContinue = document.querySelector("#victoryContinue");
 
 if (settingsToggle && settingsModal) {
   settingsToggle.addEventListener("click", () => {
@@ -1061,6 +1122,7 @@ const closeSettings = () => {
 
 if (settingsClose) settingsClose.addEventListener("click", closeSettings);
 if (settingsBackdrop) settingsBackdrop.addEventListener("click", closeSettings);
+if (victoryContinue) victoryContinue.addEventListener("click", () => window.location.reload());
 
 // Skin Cards Selection Event Handlers
 document.querySelectorAll(".skin-card").forEach((card) => {
@@ -1223,6 +1285,8 @@ window.render_game_to_text = () => JSON.stringify({
   player: { ...player },
   playerWorldCell: describePlayerWorldCell(),
   solidCell: { ...solidCell },
+  goldenBanana: { cell: { ...bananaCell }, collected: bananaCollected },
+  levelComplete,
   solidFloorHeight: floorHeightAt(player.x, player.z, player.y),
   gravity: "Yellow (world -Y)",
   interiorFloor: activeInteriorFloorFace(),

@@ -16,6 +16,8 @@ The production stack is **React + Three.js** (prefer `@react-three/fiber` and `@
 - **Interior Grid:** The 4 × 4 × 4 grid of possible Ape positions. Its `X`, `Y`, and `Z` coordinates are distances from the named colour faces used for that grid frame.
 - **Opposite Faces:** Blue/Green, Red/Orange, and White/Yellow are opposite-face pairs. Either face may describe the same coordinate; for example, `(0,0,0)` from Blue/Red/White equals `(3,3,3)` from Green/Orange/Yellow.
 - **Obstacle:** A solid assigned to an Interior Grid position that the Ape cannot pass through.
+- **Golden Banana:** A collectible rendered as a voxel model within one Interior Grid cell. Collecting it puts the game into the **Victory / Level Complete** state; Continue resets the current level to its default state.
+- **Voxel resolution:** Every `1 × 1 × 1` Interior Grid cell supports voxel models at up to `64 × 64 × 64` resolution. The Ape and Golden Banana use `1/64`-cell voxels.
 
 ## Live entry point
 
