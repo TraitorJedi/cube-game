@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Cubesque-Ape</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><rect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%2343d9b8%22/><path d=%22M8 8h7v7H8zm9 0h7v7h-7zM8 17h7v7H8zm9 0h7v7h-7z%22 fill=%22%23090a0d%22/></svg>">
-    <link rel="stylesheet" href="styles.css?v=touch-controls-1">
+    <link rel="stylesheet" href="styles.css?v=touch-controls-2">
   </head>
   <body>
     <main class="stage" aria-label="Cubesque-Ape isometric cube puzzle">
@@ -24,8 +24,25 @@
         <button type="button" class="touch-move touch-move-right" data-player-move="ArrowRight" aria-label="Move Ape right">▶</button>
         <button type="button" class="touch-move touch-move-down" data-player-move="ArrowDown" aria-label="Move Ape down">▼</button>
       </nav>
+      <div class="skin-selector" id="skinSelector" aria-label="Select Ape Suit">
+        <button class="skin-btn active" data-skin="classic" type="button">Classic</button>
+        <button class="skin-btn" data-skin="cyber" type="button">Cyber</button>
+        <button class="skin-btn" data-skin="astronaut" type="button">Space</button>
+      </div>
       <button class="mode-toggle" id="modeToggle" type="button" aria-pressed="false">Little cube</button>
     </main>
+    <div class="orientation-warning" aria-hidden="true">
+      <div class="warning-content">
+        <svg class="rotate-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="5" y="2" width="14" height="20" rx="2" transform="rotate(90 12 12)" />
+          <path d="M12 18v.01" />
+          <path d="M17 12a5 5 0 0 0-5-5" />
+          <path d="M12 7l2-2-2-2" />
+        </svg>
+        <h2>Landscape Required</h2>
+        <p>Please rotate your device to landscape orientation.</p>
+      </div>
+    </div>
     <script type="module" src="app.js"></script>
   </body>
 </html>

@@ -1,5 +1,10 @@
 import * as THREE from "three";
 import { inject } from '@vercel/analytics';
+import {
+  generateClassicApe,
+  generateCyberApe,
+  generateAstronautApe
+} from "./voxel-art/generator.js";
 
 // Initialize Vercel Analytics
 inject();
@@ -96,6 +101,7 @@ let dragPreview = null;
 let littleMode = false;
 let activePieceIndex = 26; // initial Red / White / Blue corner
 const WHITE_BLUE_MIDDLE_INDEX = 25;
+let currentSkin = "classic";
 
 function createInteriorScene(host) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -191,32 +197,104 @@ function createInteriorScene(host) {
   const doorWalls = Object.fromEntries(["left", "right", "front", "back", "up", "down"]
     .map((side) => [side, addDoorWall(side)]));
 
-  // The ape occupies one logical 1 × 1 × 1 grid cell.  Its extents are
-  // 0.78 wide × 0.80 tall × 0.64 deep, with its feet on the cell floor.
-  // Every part is deliberately a cuboid to keep the character voxel-like.
+  // The ape occupies one logical 1 × 1 × 1 grid cell.
   const playerMesh = new THREE.Group();
-  const fur = new THREE.MeshStandardMaterial({ color: 0x6f412b, roughness: 0.88 });
-  const furDark = new THREE.MeshStandardMaterial({ color: 0x3b211b, roughness: 0.95 });
-  const face = new THREE.MeshStandardMaterial({ color: 0xbd7950, roughness: 0.9 });
-  const eye = new THREE.MeshStandardMaterial({ color: 0x111116, roughness: 0.55 });
-  const voxel = (width, height, depth, x, y, z, material) => {
-    const part = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), material);
-    part.position.set(x, y, z);
-    playerMesh.add(part);
-  };
-  // Feet and body
-  voxel(0.20, 0.16, 0.28, -0.15, 0.08, 0, furDark);
-  voxel(0.20, 0.16, 0.28, 0.15, 0.08, 0, furDark);
-  voxel(0.46, 0.32, 0.36, 0, 0.31, 0, fur);
-  // Long arms, broad head, ears, muzzle, and two inset voxel eyes.
-  voxel(0.16, 0.32, 0.28, -0.31, 0.30, 0, furDark);
-  voxel(0.16, 0.32, 0.28, 0.31, 0.30, 0, furDark);
-  voxel(0.50, 0.32, 0.42, 0, 0.62, 0, fur);
-  voxel(0.14, 0.18, 0.18, -0.31, 0.62, 0, furDark);
-  voxel(0.14, 0.18, 0.18, 0.31, 0.62, 0, furDark);
-  voxel(0.28, 0.15, 0.10, 0, 0.56, 0.25, face);
-  voxel(0.06, 0.06, 0.04, -0.12, 0.69, 0.23, eye);
-  voxel(0.06, 0.06, 0.04, 0.12, 0.69, 0.23, eye);
+
+  function rebuildPlayerMesh() {
+    // Clear old children
+    while (playerMesh.children.length > 0) {
+      const child = playerMesh.children[0];
+      playerMesh.remove(child);
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) {
+        if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+        else child.material.dispose();
+      }
+    }
+
+    let voxels = [];
+    if (currentSkin === "cyber") {
+      voxels = generateCyberApe();
+    } else if (currentSkin === "astronaut") {
+      voxels = generateAstronautApe();
+    } else {
+      voxels = generateClassicApe();
+    }
+
+    const voxelSize = 1 / 64;
+    const boxSize = voxelSize * 0.96;
+    const geometry = new THREE.BoxGeometry(boxSize, boxSize, boxSize);
+
+    const grouped = { solid: [], emissive: [], visor: [] };
+    voxels.forEach(v => {
+      const type = v.type || "solid";
+      if (grouped[type]) grouped[type].push(v);
+      else grouped.solid.push(v);
+    });
+
+    const materials = {
+      solid: new THREE.MeshStandardMaterial({ roughness: 0.8, metalness: 0.1 }),
+      emissive: new THREE.MeshStandardMaterial({ roughness: 0.2, metalness: 0.1, emissiveIntensity: 2.5 }),
+      visor: new THREE.MeshStandardMaterial({ roughness: 0.15, metalness: 0.95 })
+    };
+
+    materials.emissive.onBeforeCompile = (shader) => {
+      shader.vertexShader = shader.vertexShader.replace(
+        "#include <common>",
+        `#include <common>
+         varying vec3 vInstanceColor;`
+      );
+      shader.vertexShader = shader.vertexShader.replace(
+        "#include <color_vertex>",
+        `#include <color_vertex>
+         #ifdef USE_INSTANCING_COLOR
+           vInstanceColor = instanceColor;
+         #else
+           vInstanceColor = vec3(1.0);
+         #endif`
+      );
+      shader.fragmentShader = shader.fragmentShader.replace(
+        "#include <common>",
+        `#include <common>
+         varying vec3 vInstanceColor;`
+      );
+      shader.fragmentShader = shader.fragmentShader.replace(
+        "vec3 totalEmissiveRadiance = emissive;",
+        "vec3 totalEmissiveRadiance = vInstanceColor * 2.5;"
+      );
+    };
+
+    Object.keys(grouped).forEach(type => {
+      const list = grouped[type];
+      if (list.length === 0) return;
+
+      const instMesh = new THREE.InstancedMesh(geometry, materials[type], list.length);
+      instMesh.castShadow = true;
+      instMesh.receiveShadow = true;
+
+      const dummy = new THREE.Object3D();
+      const tempColor = new THREE.Color();
+
+      list.forEach((v, index) => {
+        const tx = (v.x - 31.5) / 64;
+        const ty = (v.y + 0.5) / 64;
+        const tz = (v.z - 31.5) / 64;
+
+        dummy.position.set(tx, ty, tz);
+        dummy.updateMatrix();
+        instMesh.setMatrixAt(index, dummy.matrix);
+
+        tempColor.setHex(v.color);
+        instMesh.setColorAt(index, tempColor);
+      });
+
+      instMesh.instanceMatrix.needsUpdate = true;
+      if (instMesh.instanceColor) instMesh.instanceColor.needsUpdate = true;
+      playerMesh.add(instMesh);
+    });
+  }
+
+  rebuildPlayerMesh();
   scene3d.add(playerMesh);
 
   const solidMaterials = Array.from({ length: 6 }, () => new THREE.MeshStandardMaterial({
@@ -241,6 +319,11 @@ function createInteriorScene(host) {
     setPlayer({ x, y, z }) {
       // The group origin is at the soles of the ape, exactly on its cell floor.
       playerMesh.position.set(-1.5 + x, -2 + y, -1.5 + z);
+      render();
+    },
+    changeSkin(newSkin) {
+      currentSkin = newSkin;
+      rebuildPlayerMesh();
       render();
     },
     setSolidCell(cell, faces, visible = true) {
@@ -947,6 +1030,19 @@ document.querySelectorAll("[data-player-move]").forEach((button) => {
     if (!littleMode) return;
     event.preventDefault();
     movePlayer(button.dataset.playerMove);
+  });
+});
+
+// Skin Selector Event Handlers
+document.querySelectorAll(".skin-btn").forEach((button) => {
+  button.addEventListener("click", () => {
+    const skinName = button.dataset.skin;
+    if (currentSkin === skinName) return;
+    
+    document.querySelectorAll(".skin-btn").forEach((btn) => btn.classList.remove("active"));
+    button.classList.add("active");
+    
+    interiorScene.changeSkin(skinName);
   });
 });
 
