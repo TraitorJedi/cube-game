@@ -537,6 +537,16 @@ body.little-mode .touch-move-controls { display: none !important; }
 }
 @media (max-width: 620px) { .game-brand { top: 16px; left: 18px; } .mode-toggle { bottom: max(20px, env(safe-area-inset-bottom)); } }
 
+/* Keep the mode switch out of the active chamber on touch-sized screens. */
+@media (max-width: 900px) {
+  html.is-mobile .mode-toggle {
+    left: max(18px, env(safe-area-inset-left));
+    right: auto;
+    bottom: max(20px, env(safe-area-inset-bottom));
+    transform: none;
+  }
+}
+
 .disclosure-panel button {
   min-height: 42px;
   padding: 10px 16px;

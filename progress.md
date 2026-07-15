@@ -2,6 +2,10 @@ Original prompt: I'm missing the ability to move the center rings, also some of 
 
 ## Progress
 
+- Fixed the web-game verification tooling gap: installed `playwright` locally in the repo and in the `develop-web-game` skill folder so the required absolute-path Playwright client resolves its dependency. Added `type=module` to the skill package metadata to remove Node's module-type warning. Verified the client against the local Vite app with a one-frame no-op action burst; `npm run build` passes.
+
+- Moved the Big/Little cube mode toggle to the bottom-left safe area for touch-sized mobile viewports; desktop remains centered at the bottom.
+
 - Added a touch-only directional pad in the live `index.html` / `app.js` interior view. The four large buttons call the same `movePlayer` path as the arrow keys, remain keyboard-accessible, respect safe-area insets, and only appear while Little cube (Interior) mode is active on touch/coarse-pointer devices.
 - Verified the pad in a 393 x 737 touch viewport: it is visible and clear of the mode button, and each direction moves the initial Ape position one matching logical cell. Inspected `touch-controls-mobile.png`; production build passes. The standard web-game Playwright client remains unavailable because its `playwright` package is not installed; browser-runtime verification used the local Chrome executable instead. The only console resource error is the pre-existing blocked Vercel Analytics debug-script request in the sandbox.
 
