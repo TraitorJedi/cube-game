@@ -1,6 +1,8 @@
-# Cube Game
+# Cubesque-Ape
 
-This project is an AI-generated recreation of a Rubik's Cube explorer-style web experience.
+An isometric cube-puzzle game whose player is a voxel ape. The ape is built
+from cuboids and fits entirely inside one 1 × 1 × 1 cell of the active 4 × 4 × 4
+interior grid.
 
 It uses [iamthecu.be](https://iamthecu.be/) as a reference starting point for the concept, interaction style, and overall direction, but the source code in this repository was recreated independently for this project.
 

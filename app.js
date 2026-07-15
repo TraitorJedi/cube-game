@@ -18,6 +18,8 @@ const GRID_SIZE = 4;
 let player = { x: 1, y: 0, z: 1 };
 // This cell is a real, solid part of the active chamber.  It starts in the
 // Green / Orange / Yellow corner and rotates with the R/W/B cubelet.
+// This is the level's only obstacle.  Like doors, it belongs to the R/W/B
+// piece, rather than to whichever piece happens to be active.
 let solidCell = { x: 0, y: 0, z: 0 };
 let solidFaces = { left: "green", back: "orange", down: "yellow" };
 const faceColors = {
@@ -30,6 +32,14 @@ const stickerFaceColors = {
 const initialInteriorFaces = Object.freeze({
   front: "red", back: "orange", right: "blue", left: "green", up: "white", down: "yellow"
 });
+
+// Door coordinates are distances from the named initial colour faces
+// (Green, Orange, Yellow).  Resolving them through `interiorFaces` makes the
+// opening travel with its piece through every quarter turn.
+const DOORS = Object.freeze([
+  Object.freeze({ pieceIndex: 26, face: "orange", position: Object.freeze({ green: 3, orange: 0, yellow: 0 }) }),
+  Object.freeze({ pieceIndex: 25, face: "red", position: Object.freeze({ green: 3, orange: 3, yellow: 0 }) }),
+]);
 
 const stickers = {
   front: { axis: "z", value: 1, label: "F" },
@@ -84,6 +94,8 @@ let turnQueue = Promise.resolve();
 let activeMove = null;
 let dragPreview = null;
 let littleMode = false;
+let activePieceIndex = 26; // initial Red / White / Blue corner
+const WHITE_BLUE_MIDDLE_INDEX = 25;
 
 function createInteriorScene(host) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -124,6 +136,45 @@ function createInteriorScene(host) {
     return surface;
   };
 
+  // Orange doorway: the floor-level cell at x=3 / y=0 / z=0 is deliberately
+  // omitted. This is a real gap in the wall mesh, not a dark decal laid over
+  // a solid plane. The gold outline simply keeps the opening legible.
+  const addDoorWall = (side) => {
+    const group = new THREE.Group();
+    const material = new THREE.MeshStandardMaterial({ color: faceColors.core, roughness: 0.82, metalness: 0.02, side: THREE.DoubleSide });
+    for (let row = 0; row < GRID_SIZE; row += 1) for (let column = 0; column < GRID_SIZE; column += 1) {
+      const panel = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material);
+      if (side === "back") {
+        panel.position.set(-1.5 + column, -1.5 + row, -2);
+        panel.rotation.y = Math.PI;
+      } else if (side === "right") {
+        panel.position.set(2, -1.5 + row, -1.5 + column);
+        panel.rotation.y = Math.PI / 2;
+      } else if (side === "left") {
+        panel.position.set(-2, -1.5 + row, -1.5 + column);
+        panel.rotation.y = -Math.PI / 2;
+      } else if (side === "front") {
+        panel.position.set(-1.5 + column, -1.5 + row, 2);
+      } else if (side === "up") {
+        panel.position.set(-1.5 + column, 2, -1.5 + row);
+        panel.rotation.x = Math.PI / 2;
+      } else {
+        panel.position.set(-1.5 + column, -2, 1.5 - row);
+        panel.rotation.x = -Math.PI / 2;
+      }
+      panel.userData.cell = side === "left" ? { x: 0, y: row, z: column }
+        : side === "right" ? { x: 3, y: row, z: column }
+          : side === "front" ? { x: column, y: row, z: 3 }
+            : side === "back" ? { x: column, y: row, z: 0 }
+              : side === "up" ? { x: column, y: 3, z: row } : { x: column, y: 0, z: row };
+      group.add(panel);
+    }
+    group.material = material;
+    group.visible = false;
+    scene3d.add(group);
+    return group;
+  };
+
   // A genuine 4×4×4 hollow chamber: Yellow floor, with Red, Blue and White inner walls.
   // The physical down direction is fixed to initial Yellow/world -Y. The
   // sticker facing it after a turn becomes this chamber floor.
@@ -137,11 +188,35 @@ function createInteriorScene(host) {
     front: addGridPlane(faceColors.core, [0, 0, 2], [0, 0, 0]),
     back: addGridPlane(faceColors.core, [0, 0, -2], [0, Math.PI, 0]),
   };
+  const doorWalls = Object.fromEntries(["left", "right", "front", "back", "up", "down"]
+    .map((side) => [side, addDoorWall(side)]));
 
-  const playerMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(0.62, 0.62, 0.62),
-    new THREE.MeshStandardMaterial({ color: 0x43d9b8, emissive: 0x0e473e, emissiveIntensity: 0.35, roughness: 0.5 }),
-  );
+  // The ape occupies one logical 1 × 1 × 1 grid cell.  Its extents are
+  // 0.78 wide × 0.80 tall × 0.64 deep, with its feet on the cell floor.
+  // Every part is deliberately a cuboid to keep the character voxel-like.
+  const playerMesh = new THREE.Group();
+  const fur = new THREE.MeshStandardMaterial({ color: 0x6f412b, roughness: 0.88 });
+  const furDark = new THREE.MeshStandardMaterial({ color: 0x3b211b, roughness: 0.95 });
+  const face = new THREE.MeshStandardMaterial({ color: 0xbd7950, roughness: 0.9 });
+  const eye = new THREE.MeshStandardMaterial({ color: 0x111116, roughness: 0.55 });
+  const voxel = (width, height, depth, x, y, z, material) => {
+    const part = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), material);
+    part.position.set(x, y, z);
+    playerMesh.add(part);
+  };
+  // Feet and body
+  voxel(0.20, 0.16, 0.28, -0.15, 0.08, 0, furDark);
+  voxel(0.20, 0.16, 0.28, 0.15, 0.08, 0, furDark);
+  voxel(0.46, 0.32, 0.36, 0, 0.31, 0, fur);
+  // Long arms, broad head, ears, muzzle, and two inset voxel eyes.
+  voxel(0.16, 0.32, 0.28, -0.31, 0.30, 0, furDark);
+  voxel(0.16, 0.32, 0.28, 0.31, 0.30, 0, furDark);
+  voxel(0.50, 0.32, 0.42, 0, 0.62, 0, fur);
+  voxel(0.14, 0.18, 0.18, -0.31, 0.62, 0, furDark);
+  voxel(0.14, 0.18, 0.18, 0.31, 0.62, 0, furDark);
+  voxel(0.28, 0.15, 0.10, 0, 0.56, 0.25, face);
+  voxel(0.06, 0.06, 0.04, -0.12, 0.69, 0.23, eye);
+  voxel(0.06, 0.06, 0.04, 0.12, 0.69, 0.23, eye);
   scene3d.add(playerMesh);
 
   const solidMaterials = Array.from({ length: 6 }, () => new THREE.MeshStandardMaterial({
@@ -164,10 +239,13 @@ function createInteriorScene(host) {
   resizeObserver.observe(host);
   return {
     setPlayer({ x, y, z }) {
-      playerMesh.position.set(-1.5 + x, -1.69 + y, -1.5 + z);
+      // The group origin is at the soles of the ape, exactly on its cell floor.
+      playerMesh.position.set(-1.5 + x, -2 + y, -1.5 + z);
       render();
     },
-    setSolidCell(cell, faces) {
+    setSolidCell(cell, faces, visible = true) {
+      solidMesh.visible = visible;
+      if (!visible) { render(); return; }
       solidMesh.position.set(-1.5 + cell.x, -1.5 + cell.y, -1.5 + cell.z);
       solidMaterials.forEach((material) => material.color.setHex(faceColors.core));
       // The faces visible from the room are the inward continuation of the
@@ -179,6 +257,20 @@ function createInteriorScene(host) {
       render();
     },
     setChamber(stickerMap) {
+      const activeDoor = doorForPiece(activePieceIndex);
+      const activeDoorSide = activeDoor && sideForFace(activeCubelet(), activeDoor.face);
+      const activeDoorCell = activeDoor && doorCell(activeDoor, activeCubelet());
+      const isVisibleInteriorFace = (side) => side === "back" || side === "left" || side === "down";
+      Object.entries(doorWalls).forEach(([side, wall]) => {
+        // The chamber is a fixed front/right/top cutaway. A door keeps its
+        // world state on those faces, but never closes the viewing aperture.
+        const visible = side === activeDoorSide && isVisibleInteriorFace(side);
+        wall.visible = visible;
+        if (visible) {
+          wall.material.color.setHex(faceColors[activeDoor.face]);
+          wall.children.forEach((panel) => { panel.visible = !sameCell(panel.userData.cell, activeDoorCell); });
+        }
+      });
       Object.entries(chamberFaces).forEach(([side, surface]) => {
         // Before its first turn, the active corner has no outward world-down
         // sticker, so its interior floor starts Yellow. Thereafter, the
@@ -186,7 +278,10 @@ function createInteriorScene(host) {
         const sticker = stickerMap?.[side];
         const colorName = sticker && (faceColors[sticker] ? sticker : stickerFaceColors[sticker]);
         const color = faceColors[colorName ?? (side === "down" ? "yellow" : "core")];
-        const cutaway = side === "front" || side === "right" || side === "up";
+        // The regular right plane stays cut away; when Red is there, the
+        // segmented redDoorWall replaces it so its missing doorway cell is
+        // genuinely empty rather than covered by a transparent full plane.
+        const cutaway = !isVisibleInteriorFace(side) || side === activeDoorSide;
         surface.material.color.setHex(color);
         surface.material.emissive.setHex(color);
         surface.material.emissiveIntensity = 0.06;
@@ -248,7 +343,7 @@ function renderStickers(cubelet) {
     `)
     .join("");
 
-  cubelet.element.className = `cubie ${cubeletType(cubelet.position)}${Object.values(cubelet.stickers).includes("up") ? " has-white" : ""}${cubelet.index === 26 ? " is-active-piece" : ""}`;
+  cubelet.element.className = `cubie ${cubeletType(cubelet.position)}${Object.values(cubelet.stickers).includes("up") ? " has-white" : ""}${cubelet.index === activePieceIndex ? " is-active-piece" : ""}`;
 }
 
 function buildCube() {
@@ -265,7 +360,7 @@ function buildCube() {
           .filter(([, sticker]) => position[sticker.axis] === sticker.value)
           .map(([face]) => face);
 
-        element.className = `cubie ${cubeletType(position)}${visibleStickers.includes("up") ? " has-white" : ""}${index === 26 ? " is-active-piece" : ""}`;
+        element.className = `cubie ${cubeletType(position)}${visibleStickers.includes("up") ? " has-white" : ""}${index === activePieceIndex ? " is-active-piece" : ""}`;
         element.dataset.index = String(index);
         element.innerHTML = visibleStickers.map((face) => stickerMarkup(face, index)).join("");
         cube.append(element);
@@ -290,7 +385,8 @@ function buildCube() {
 function baseTransform(cubelet) {
   const step = tileStep();
   const { x, y, z } = cubelet.position;
-  return `translate3d(${x * step}px, ${-y * step}px, ${z * step}px)`;
+  const emphasis = cubelet.index === activePieceIndex ? " scale3d(1.12, 1.12, 1.12)" : "";
+  return `translate3d(${x * step}px, ${-y * step}px, ${z * step}px)${emphasis}`;
 }
 
 function axisTransform(axis, angle) {
@@ -464,13 +560,14 @@ function finishFaceDrag(preview, targetAngle) {
 
   setTimeout(() => {
     if (targetAngle !== 0) {
-      const activePieceTurned = preview.affected.some((cubelet) => cubelet.index === 26);
+      const activePieceTurned = preview.affected.some((cubelet) => cubelet.index === activePieceIndex);
       preview.affected.forEach((cubelet) => {
         cubelet.position = rotatePosition(cubelet.position, preview.axis, targetAngle);
         cubelet.stickers = rotateStickerSides(cubelet.stickers, preview.axis, targetAngle);
         cubelet.interiorFaces = rotateStickerSides(cubelet.interiorFaces, preview.axis, targetAngle);
         renderStickers(cubelet);
       });
+      if (preview.affected.some((cubelet) => cubelet.index === 26)) rotateObstacleWithPiece(preview.axis, targetAngle);
       if (activePieceTurned) rotatePlayerWithActivePiece(preview.axis, targetAngle);
       history.push(move);
     }
@@ -538,7 +635,7 @@ function animateMove(move, record = true) {
 
   const { axis, layer, angle } = details;
   const affected = cubelets.filter((cubelet) => cubelet.position[axis] === layer);
-  const activePieceTurned = affected.some((cubelet) => cubelet.index === 26);
+  const activePieceTurned = affected.some((cubelet) => cubelet.index === activePieceIndex);
   const turn = axisTransform(axis, visualAngle(axis, angle));
 
   affected.forEach((cubelet) => {
@@ -560,6 +657,7 @@ function animateMove(move, record = true) {
         cubelet.element.classList.remove("is-turning");
         renderStickers(cubelet);
       });
+      if (affected.some((cubelet) => cubelet.index === 26)) rotateObstacleWithPiece(axis, angle);
       if (activePieceTurned) rotatePlayerWithActivePiece(axis, angle);
       renderCubelets();
       if (littleMode) renderInterior();
@@ -640,12 +738,18 @@ function toggleDemo(button) {
 
 function renderInterior() {
   interiorScene.setChamber(activeCubelet()?.interiorFaces);
-  interiorScene.setSolidCell(solidCell, solidFaces);
+  interiorScene.setSolidCell(solidCell, solidFaces, activePieceIndex === 26);
   interiorScene.setPlayer(player);
 }
 
 function activeCubelet() {
-  return cubelets.find((cubelet) => cubelet.index === 26);
+  return cubelets.find((cubelet) => cubelet.index === activePieceIndex);
+}
+
+function setActivePiece(index) {
+  activePieceIndex = index;
+  cubelets.forEach(renderStickers);
+  renderCubelets();
 }
 
 function activeInteriorFloorFace() {
@@ -663,8 +767,6 @@ function rotatePlayerWithActivePiece(axis, angle) {
   const turns = ((angle / 90) % 4 + 4) % 4;
   for (let turn = 0; turn < turns; turn += 1) {
     player = rotateInteriorCell(player, axis);
-    solidCell = rotateInteriorCell(solidCell, axis);
-    solidFaces = rotateStickerSides(solidFaces, axis, 90);
   }
   player = settlePlayerOnFloor(player);
 }
@@ -680,6 +782,14 @@ function isSolidAt(x, y, z) {
   return solidCell.x === x && solidCell.y === y && solidCell.z === z;
 }
 
+function rotateObstacleWithPiece(axis, angle) {
+  const turns = ((angle / 90) % 4 + 4) % 4;
+  for (let turn = 0; turn < turns; turn += 1) {
+    solidCell = rotateInteriorCell(solidCell, axis);
+    solidFaces = rotateStickerSides(solidFaces, axis, 90);
+  }
+}
+
 function floorHeightAt(x, z, fallingFromY) {
   // A solid only becomes a floor when it is below (or at collision height
   // with) the player. A cube hanging above the player leaves the floor open,
@@ -690,7 +800,7 @@ function floorHeightAt(x, z, fallingFromY) {
 }
 
 function settlePlayerOnFloor(cell) {
-  return { ...cell, y: floorHeightAt(cell.x, cell.z, cell.y) };
+  return { ...cell, y: activePieceIndex === 26 ? floorHeightAt(cell.x, cell.z, cell.y) : 0 };
 }
 
 function describePlayerWorldCell() {
@@ -704,15 +814,73 @@ function describePlayerWorldCell() {
   };
 }
 
+function sideForFace(piece, face) {
+  return Object.entries(piece?.interiorFaces ?? initialInteriorFaces)
+    .find(([, color]) => color === face)?.[0];
+}
+
+function doorCell(door, piece = cubelets.find((cubelet) => cubelet.index === door.pieceIndex)) {
+  const cell = { x: 0, y: 0, z: 0 };
+  const assign = (face, distance) => {
+    const side = sideForFace(piece, face);
+    if (side === "left") cell.x = distance;
+    if (side === "right") cell.x = GRID_SIZE - 1 - distance;
+    if (side === "back") cell.z = distance;
+    if (side === "front") cell.z = GRID_SIZE - 1 - distance;
+    if (side === "down") cell.y = distance;
+    if (side === "up") cell.y = GRID_SIZE - 1 - distance;
+  };
+  assign("green", door.position.green);
+  assign("orange", door.position.orange);
+  assign("yellow", door.position.yellow);
+  return cell;
+}
+
+function doorForPiece(pieceIndex) {
+  return DOORS.find((door) => door.pieceIndex === pieceIndex);
+}
+
+function sameCell(a, b) {
+  return a.x === b.x && a.y === b.y && a.z === b.z;
+}
+
+function keyForDoorSide(side) {
+  return { left: "ArrowLeft", right: "ArrowRight", back: "ArrowUp", front: "ArrowDown" }[side];
+}
+
+function doorsTouch(door, target) {
+  const sourcePiece = cubelets.find((cubelet) => cubelet.index === door.pieceIndex);
+  const targetPiece = cubelets.find((cubelet) => cubelet.index === target.pieceIndex);
+  const sourceSide = sideForFace(sourcePiece, door.face);
+  const targetSide = sideForFace(targetPiece, target.face);
+  const vector = sideVectors[sourceSide];
+  const opposite = sideVectors[targetSide];
+  return vector && opposite && vector.x === -opposite.x && vector.y === -opposite.y && vector.z === -opposite.z
+    && targetPiece.position.x - sourcePiece.position.x === vector.x
+    && targetPiece.position.y - sourcePiece.position.y === vector.y
+    && targetPiece.position.z - sourcePiece.position.z === vector.z;
+}
+
 function movePlayer(key) {
+  const door = doorForPiece(activePieceIndex);
+  const targetDoor = DOORS.find((candidate) => candidate !== door);
+  const activePiece = activeCubelet();
+  if (door && targetDoor && sameCell(player, doorCell(door, activePiece))
+    && key === keyForDoorSide(sideForFace(activePiece, door.face)) && doorsTouch(door, targetDoor)) {
+    setActivePiece(targetDoor.pieceIndex);
+    player = doorCell(targetDoor);
+    showToast("Passed through door");
+    renderInterior();
+    return;
+  }
   const delta = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[key];
   if (!delta) return;
   const x = Math.max(0, Math.min(GRID_SIZE - 1, player.x + delta[0]));
   const z = Math.max(0, Math.min(GRID_SIZE - 1, player.z + delta[1]));
   // The player may move below a suspended block. It is blocked only by a
   // block occupying the same logical cell at the target lateral position.
-  if (isSolidAt(x, player.y, z)) return;
-  const targetFloor = floorHeightAt(x, z, player.y);
+  if (activePieceIndex === 26 && isSolidAt(x, player.y, z)) return;
+  const targetFloor = activePieceIndex === 26 ? floorHeightAt(x, z, player.y) : 0;
   // Lateral moves can drop to a lower floor.  A one-cell raised floor cannot
   // be climbed yet, and its occupied cell therefore blocks the player.
   if (targetFloor <= player.y) player = { x, z, y: targetFloor };
@@ -918,13 +1086,17 @@ window.render_game_to_text = () => JSON.stringify({
   viewRotation: { ...rotation },
   activeMove,
   dragPreview,
-  activePiece: "Red / White / Blue",
+  activePiece: activePieceIndex === 26 ? "Red / White / Blue" : "White / Blue middle",
   player: { ...player },
   playerWorldCell: describePlayerWorldCell(),
   solidCell: { ...solidCell },
   solidFloorHeight: floorHeightAt(player.x, player.z, player.y),
   gravity: "Yellow (world -Y)",
   interiorFloor: activeInteriorFloorFace(),
+  doors: DOORS.map((door) => {
+    const piece = cubelets.find((cubelet) => cubelet.index === door.pieceIndex);
+    return { piece: door.pieceIndex === 26 ? "R/W/B" : "W/B", face: door.face, position: door.position, worldSide: sideForFace(piece, door.face), cell: doorCell(door, piece) };
+  }),
   moves: history.slice(),
   cubelets: cubelets.map(({ index, position, stickers: cubeletStickers }) => ({
     index,

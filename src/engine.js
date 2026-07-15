@@ -1,7 +1,18 @@
 export const GRID_SIZE = 4;
 export const INITIAL_GRAVITY_FACE = "yellow";
 export const ACTIVE_PIECE = Object.freeze({ id: "1,1,1", colors: ["red", "white", "blue"] });
+export const WHITE_BLUE_MIDDLE_PIECE = Object.freeze({ id: "1,1,0", colors: ["white", "blue"] });
 export const INITIAL_SOLID_CELL = Object.freeze({ x: 0, y: 0, z: 0 });
+
+// Immutable piece IDs let the doors travel with their cubelets. The Orange
+// threshold is Blue/Orange/Yellow (3,0,0); crossing it enters the W/B middle
+// cubelet through its paired Red threshold.
+export const DOORS = Object.freeze([
+  Object.freeze({ pieceId: ACTIVE_PIECE.id, faceColor: "orange", cell: Object.freeze({ x: 3, y: 0, z: 0 }), key: "ArrowUp", targetPieceId: WHITE_BLUE_MIDDLE_PIECE.id, targetCell: Object.freeze({ x: 3, y: 0, z: 3 }) }),
+  // faceCell preserves the requested Red-face location in its local G/O/Y
+  // frame; thresholdCell is the floor-aligned world cell used for traversal.
+  Object.freeze({ pieceId: WHITE_BLUE_MIDDLE_PIECE.id, faceColor: "red", faceCell: Object.freeze({ x: 3, y: 3, z: 0 }), cell: Object.freeze({ x: 3, y: 0, z: 3 }), key: "ArrowDown", targetPieceId: ACTIVE_PIECE.id, targetCell: Object.freeze({ x: 3, y: 0, z: 0 }) }),
+]);
 
 export const FACE_COLORS = Object.freeze({
   front: "red", back: "orange", right: "blue", left: "green", up: "white", down: "yellow",
@@ -65,7 +76,7 @@ export function applyMove(pieces, move) {
 
 export function createGameState() {
   return {
-    mode: "cube", cube: createRubiksCube(), moves: [], history: [], material: "grid", activePiece: ACTIVE_PIECE,
+    mode: "cube", cube: createRubiksCube(), moves: [], history: [], material: "grid", activePieceId: ACTIVE_PIECE.id,
     // These are world-horizontal grid coordinates: x is Blue/Green (right/left)
     // and z is Red/Orange (front/back). They do not rotate with the camera.
     // y is always settled to the active chamber's world-down interior face.
@@ -74,8 +85,8 @@ export function createGameState() {
   };
 }
 
-export function getActivePiece(pieces) {
-  return pieces.find((piece) => piece.id === ACTIVE_PIECE.id);
+export function getActivePiece(pieces, activePieceId = ACTIVE_PIECE.id) {
+  return pieces.find((piece) => piece.id === activePieceId);
 }
 
 export function getFloorFace(piece) {
@@ -87,7 +98,7 @@ export function getFloorFace(piece) {
 export function turnCube(state, move) {
   const cube = applyMove(state.cube, move);
   const config = MOVE_CONFIG[move.replace(/[2']/g, "")];
-  const active = getActivePiece(state.cube);
+  const active = getActivePiece(state.cube, state.activePieceId);
   const activeTurns = config && active?.position[config.axis] === config.layer;
   const angle = move.endsWith("'") ? -config?.angle : config?.angle;
   const turns = move.endsWith("2") ? 2 : 1;
@@ -122,6 +133,16 @@ export function movePlayer(player, key, solidCell = INITIAL_SOLID_CELL) {
   if (isSolidAt(x, player.y, z, solidCell)) return player;
   const floor = floorHeightAt(x, z, solidCell, player.y);
   return floor <= player.y ? { x, y: floor, z } : player;
+}
+
+export function getDoor(pieceId, player, key) {
+  return DOORS.find((door) => door.pieceId === pieceId && door.key === key && door.cell.x === player.x && door.cell.y === player.y && door.cell.z === player.z);
+}
+
+export function movePlayerInWorld(state, key) {
+  const door = getDoor(state.activePieceId, state.player, key);
+  if (door) return { ...state, activePieceId: door.targetPieceId, player: { ...door.targetCell } };
+  return { ...state, player: movePlayer(state.player, key, state.solidCell) };
 }
 
 function rotateInteriorCell(cell, axis, angle) {

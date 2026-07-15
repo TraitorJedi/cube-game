@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import * as THREE from "three";
-import { GRID_SIZE, createGameState, getActivePiece, getFloorFace, movePlayer, settlePlayer, turnCube, parseMoves, undoCube } from "./engine.js";
+import { GRID_SIZE, DOORS, createGameState, getActivePiece, getFloorFace, movePlayerInWorld, settlePlayer, turnCube, parseMoves, undoCube } from "./engine.js";
 
 const { createElement: h } = React;
 const STEP = 1.92;
@@ -20,7 +20,7 @@ function createCubelet(piece, materialMode) {
   return mesh;
 }
 
-function addInterior(scene, piece, player) {
+function addInterior(scene, piece, player, activePieceId) {
   const origin = new THREE.Vector3(piece.position.x * STEP, piece.position.y * STEP, piece.position.z * STEP);
   const cell = 1.45 / GRID_SIZE;
   const floorColor = COLORS[getFloorFace(piece)] ?? COLORS.core;
@@ -38,9 +38,33 @@ function addInterior(scene, piece, player) {
     ["front", new THREE.BoxGeometry(1.48, 1.45, .06), new THREE.Vector3(0, -.05, .77)],
     ["back", new THREE.BoxGeometry(1.48, 1.45, .06), new THREE.Vector3(0, -.05, -.77)],
   ];
+  const door = DOORS.find((candidate) => candidate.pieceId === activePieceId);
   walls.forEach(([face, geometry, offset]) => {
-    const wall = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: COLORS[piece.stickers[face]] ?? COLORS.core, transparent: true, opacity: .66 }));
-    wall.position.copy(origin).add(offset); scene.add(wall);
+    const material = new THREE.MeshStandardMaterial({ color: COLORS[piece.stickers[face]] ?? COLORS.core, transparent: true, opacity: .66 });
+    if (!door || piece.stickers[face] !== door.faceColor) {
+      const wall = new THREE.Mesh(geometry, material);
+      wall.position.copy(origin).add(offset); scene.add(wall);
+      return;
+    }
+    // Build this wall from cells and deliberately omit the door's cell. This
+    // is an actual opening: no mesh exists in its volume or across its face.
+    const zWall = face === "front" || face === "back";
+    const doorZ = face === "back" ? 0 : GRID_SIZE - 1;
+    for (let row = 0; row < GRID_SIZE; row += 1) for (let column = 0; column < GRID_SIZE; column += 1) {
+      const panelX = zWall ? column : (face === "left" ? 0 : GRID_SIZE - 1);
+      const panelZ = zWall ? doorZ : column;
+      if (panelX === door.cell.x && panelZ === door.cell.z && row === door.cell.y) continue;
+      const panel = new THREE.Mesh(zWall ? new THREE.BoxGeometry(cell - .012, cell - .012, .06) : new THREE.BoxGeometry(.06, cell - .012, cell - .012), material);
+      const lateral = -.72 + (column + .5) * cell;
+      panel.position.copy(origin).add(zWall ? new THREE.Vector3(lateral, -.72 + (row + .5) * cell, offset.z) : new THREE.Vector3(offset.x, -.72 + (row + .5) * cell, lateral));
+      scene.add(panel);
+    }
+    // A thin high-contrast threshold keeps the empty opening legible from the
+    // isometric camera without filling it back in.
+    const openingX = -.72 + (door.cell.x + .5) * cell;
+    const threshold = new THREE.Mesh(new THREE.BoxGeometry(cell * .95, .018, .06), new THREE.MeshBasicMaterial({ color: 0xffd34d }));
+    threshold.position.copy(origin).add(zWall ? new THREE.Vector3(openingX, -.71, offset.z) : new THREE.Vector3(offset.x, -.71, openingX));
+    scene.add(threshold);
   });
   // Grid lines start at -0.72. Add half a cell so the player is tile-centered, never on an intersection.
   const local = (value) => -.72 + (value + .5) * cell;
@@ -69,7 +93,7 @@ function CubeScene({ game }) {
     const pointerUp = () => { dragging.current = null; };
     const render = () => {
       const current = gameRef.current;
-      const activePiece = getActivePiece(current.cube);
+      const activePiece = getActivePiece(current.cube, current.activePieceId);
       const distance = current.mode === "interior" ? 7.6 : 13;
       const target = current.mode === "interior" && activePiece
         ? new THREE.Vector3(activePiece.position.x * STEP, activePiece.position.y * STEP - .35, activePiece.position.z * STEP + .3)
@@ -91,9 +115,9 @@ function CubeScene({ game }) {
   useEffect(() => {
     const scene = sceneRef.current; if (!scene) return;
     for (const item of [...scene.children]) if (item.userData.worldObject) scene.remove(item);
-    const activePiece = getActivePiece(game.cube);
+    const activePiece = getActivePiece(game.cube, game.activePieceId);
     game.cube.forEach((piece) => { const cubelet = createCubelet(piece, game.material); cubelet.userData.worldObject = true; cubelet.visible = !(game.mode === "interior" && piece.id === activePiece?.id); scene.add(cubelet); });
-    if (game.mode === "interior" && activePiece) { const before = new Set(scene.children); addInterior(scene, activePiece, game.player); scene.children.filter((item) => !before.has(item)).forEach((item) => { item.userData.worldObject = true; }); }
+    if (game.mode === "interior" && activePiece) { const before = new Set(scene.children); addInterior(scene, activePiece, game.player, game.activePieceId); scene.children.filter((item) => !before.has(item)).forEach((item) => { item.userData.worldObject = true; }); }
     rendererRef.current?.render();
   }, [game]);
   return h("div", { className: "scene-host", ref: host, "aria-label": "Interactive 3D Rubik's Cube puzzle" });
@@ -102,15 +126,15 @@ function CubeScene({ game }) {
 function App() {
   const [game, setGame] = useState(createGameState);
   const [command, setCommand] = useState("R U R' U'");
-  useEffect(() => { const onKey = (event) => { if (game.mode !== "interior" || !event.key.startsWith("Arrow")) return; event.preventDefault(); setGame((current) => ({ ...current, player: movePlayer(current.player, event.key, current.solidCell) })); }; window.addEventListener("keydown", onKey, { passive: false }); return () => window.removeEventListener("keydown", onKey); }, [game.mode]);
-  useEffect(() => { window.render_game_to_text = () => { const activePiece = getActivePiece(game.cube); return JSON.stringify({ mode: game.mode, material: game.material, activePiece: "R/W/B", activePosition: activePiece?.position, floor: getFloorFace(activePiece), player: game.player, axes: "x Blue/Green right/left; z Red/Orange front/back; y White/Yellow up/down", gravity: "Yellow (world -Y)", moves: game.moves, grid: "4x4" }); }; window.advanceTime = () => {}; }, [game]);
+  useEffect(() => { const onKey = (event) => { if (game.mode !== "interior" || !event.key.startsWith("Arrow")) return; event.preventDefault(); setGame((current) => movePlayerInWorld(current, event.key)); }; window.addEventListener("keydown", onKey, { passive: false }); return () => window.removeEventListener("keydown", onKey); }, [game.mode]);
+  useEffect(() => { window.render_game_to_text = () => { const activePiece = getActivePiece(game.cube, game.activePieceId); return JSON.stringify({ mode: game.mode, material: game.material, activePiece: game.activePieceId === "1,1,1" ? "R/W/B" : "W/B middle", activePosition: activePiece?.position, floor: getFloorFace(activePiece), player: game.player, doors: DOORS.filter((door) => door.pieceId === game.activePieceId).map((door) => ({ face: door.faceColor, cell: door.cell, faceCell: door.faceCell })), axes: "x Blue/Green right/left; z Red/Orange front/back; y White/Yellow up/down", gravity: "Yellow (world -Y)", moves: game.moves, grid: "4x4" }); }; window.advanceTime = () => {}; }, [game]);
   const setMode = (mode) => setGame((current) => ({ ...current, mode, player: settlePlayer(current.player) }));
   const turn = (move) => setGame((current) => current.mode === "cube" ? turnCube(current, move) : current);
   const runCommand = () => setGame((current) => parseMoves(command).reduce((next, move) => turnCube(next, move), current));
   const shuffle = () => { const tokens = ["U", "D", "L", "R", "F", "B", "U'", "D'", "L'", "R'", "F'", "B'"]; const sequence = Array.from({ length: 12 }, () => tokens[Math.floor(Math.random() * tokens.length)]); setGame((current) => sequence.reduce((next, move) => turnCube(next, move), current)); };
   const moves = ["U", "D", "L", "R", "F", "B", "M", "E", "S"];
   const cubePanel = h("section", { className: "cube-panel", "aria-label": "Cube Explorer controls" }, h("p", { className: "eyebrow" }, "Cube Explorer"), h("h1", null, "I am the cube."), h("p", { className: "lede" }, "Twist faces, move center rings, and inspect the puzzle's logic."), h("div", { className: "command" }, h("span", null, "cube.twist("), h("input", { value: command, onChange: (event) => setCommand(event.target.value), "aria-label": "Twist notation" }), h("span", null, ")"), h("button", { type: "button", onClick: runCommand }, "Run")), h("aside", { className: "cube-toolbar", "aria-label": "Cube settings" }, h("div", null, h("h2", null, "Styles"), ["grid", "glass"].map((style) => h("button", { key: style, type: "button", className: `chip ${game.material === style ? "is-active" : ""}`, onClick: () => setGame((current) => ({ ...current, material: style })) }, style))), h("div", null, h("h2", null, "Actions"), h("button", { type: "button", className: "chip", onClick: () => setGame(undoCube) }, "Undo"), h("button", { type: "button", className: "chip", onClick: shuffle }, "Shuffle"), h("button", { type: "button", className: "chip", onClick: () => setGame(createGameState) }, "Reset"))), h("div", { className: "face-controls", "aria-label": "Face and center-ring turns" }, moves.flatMap((move) => [h("button", { key: move, type: "button", onClick: () => turn(move) }, move), h("button", { key: `${move}'`, type: "button", onClick: () => turn(`${move}'`) }, `${move}'`)])));
-  const activePiece = getActivePiece(game.cube);
+  const activePiece = getActivePiece(game.cube, game.activePieceId);
   const floor = getFloorFace(activePiece);
   return h("main", { className: "app" }, game.mode === "cube" ? cubePanel : h("div", { className: "brand" }, h("p", { className: "eyebrow" }, "Cube / Interior"), h("h1", null, "A puzzle engine begins here."), h("p", null, "Navigate a single cell through the living core of a Rubik's Cube.")), h("div", { className: "hud" }, h("p", null, "Active chamber"), h("strong", null, "Red / White / Blue"), h("p", null, `Floor: ${floor ?? "core"} · Gravity: Yellow`)), h(CubeScene, { game }), h("div", { className: "mode-switch", "aria-label": "Interaction mode" }, h("button", { type: "button", "aria-pressed": game.mode === "cube", onClick: () => setMode("cube") }, "Cube mode"), h("button", { type: "button", "aria-pressed": game.mode === "interior", onClick: () => setMode("interior") }, "Enter chamber")), h("div", { className: "instructions" }, game.mode === "interior" ? h(React.Fragment, null, h("kbd", null, "Arrow keys"), " move on the 4 x 4 world-aligned floor.") : "Drag empty space to orbit. Click a face-turn control or run cube notation."));
 }

@@ -6,6 +6,21 @@ Evolve this repository into a browser-first isometric puzzle-game engine, initia
 
 The production stack is **React + Three.js** (prefer `@react-three/fiber` and `@react-three/drei` when they reduce custom glue code). The app must be compatible with a standard Vercel deployment: static/client rendering by default, no required long-running server, no Node-only browser paths, and environment variables only when genuinely needed.
 
+## Definitions
+
+- **World Cube:** The whole world cube, including all World Cube Pieces.
+- **World Cube Piece:** A section of the World Cube with an interior in which the Ape can move.
+- **Active Cube Piece:** The World Cube Piece containing the Player Ape.
+- **Player Ape / Ape:** The player avatar that moves within a World Cube Piece.
+- **Door:** An opening on a face that lets the Ape pass between touching World Cube Pieces.
+- **Interior Grid:** The 4 × 4 × 4 grid of possible Ape positions. Its `X`, `Y`, and `Z` coordinates are distances from the named colour faces used for that grid frame.
+- **Opposite Faces:** Blue/Green, Red/Orange, and White/Yellow are opposite-face pairs. Either face may describe the same coordinate; for example, `(0,0,0)` from Blue/Red/White equals `(3,3,3)` from Green/Orange/Yellow.
+- **Obstacle:** A solid assigned to an Interior Grid position that the Ape cannot pass through.
+
+## Live entry point
+
+`index.html` currently loads `app.js`; it is the production game source of truth. `src/main.js` and `src/engine.js` are an unfinished migration and must not receive gameplay fixes unless the migration is intentionally completed and `index.html` is switched in the same change. The pre-build entry-point check enforces this boundary.
+
 ## Core world rules
 
 - The level is a 3 x 3 x 3 Rubik's Cube: 27 independently addressable cube pieces.

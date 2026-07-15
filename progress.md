@@ -2,6 +2,12 @@ Original prompt: I'm missing the ability to move the center rings, also some of 
 
 ## Progress
 
+- Door/obstacle follow-up: the live `app.js` now defines exactly two doors in Green/Orange/Yellow face-relative coordinates: R/W/B Orange `(3,0,0)` and W/B Red `(3,3,0)`. Their current wall cell and directional interaction are resolved from each cubelet's rotating interior-face map, and a transfer only occurs while both openings are physically touching. The sole obstacle remains attached to R/W/B even when another piece is active or R/W/B turns while inactive.
+
+- Interior visibility rule: Front, Right, and Up are permanent cutaway faces. Doors can still logically rotate onto them, but their wall panels are never rendered; only Back, Left, and Down may render a wall or doorway.
+
+- Renamed the game presentation to **Cubesque-Ape** and replaced the interior player cube with a compact voxel ape. Its measured footprint is 0.78 × 0.80 × 0.64 of a logical grid cell, so it remains wholly within one 1 × 1 × 1 cell.
+
 - Replaced per-face gesture conditionals with face-local right/up coordinate frames.
 - Added M, E, and S middle-slice moves to animation, command parsing, and controls.
 - Center sticker horizontal/vertical drags now choose different middle slices.
@@ -61,3 +67,21 @@ Original prompt: I'm missing the ability to move the center rings, also some of 
 - Add real Rubik's whole-cube quarter-turn logic and use it to re-settle the player after a physical rotation.
 - Convert new engine files to TypeScript when the next gameplay feature warrants the migration.
 - Complete remaining original Cube Explorer parity: direct sticker drag with continuous preview/snap, labels, cubelet filters, and auto-orbit/realign camera actions.
+
+- Added a deterministic paired Orange/Red doorway between R/W/B and the W/B middle cubelet. ArrowUp from (3,0,0) switches activePieceId to W/B at (3,0,3); ArrowDown returns. Yellow gravity remains world -Y. Engine round-trip check and build passed.
+
+- Correction: W/B middle has no Yellow sticker; its floor material reports core while gravity still remains Yellow/world -Y. The paired door engine round-trip passed after checking gravity rather than sticker color.
+
+- Door verification: deterministic engine round-trip passes (Orange threshold to W/B and Red threshold back), Yellow gravity unchanged; npm.cmd run build passes. The prescribed Playwright client could not run because the workspace does not provide the playwright package, so no browser screenshot was produced.
+
+- Follow-up verification: cube turns now look up the dynamic activePieceId, so post-door rotations settle/rotate the currently active W/B chamber rather than the original R/W/B piece. Focused door-plus-turn check and production build passed.
+
+- Replaced the door's painted dark inset with a real missing wall-cell mesh and a thin gold threshold for visibility; build passes. Playwright remains unavailable in this workspace.
+
+- Screenshot diagnosis: index.html runs app.js, not src/main.js. Added the real Orange-wall doorway to app.js as a missing floor-level panel at (3,0,0), framed in gold for visibility. Build passed.
+
+- Also moved the actual live app's active-piece state from a hard-coded R/W/B index to activePieceIndex. The Orange threshold now changes the live app to W/B middle (and the Red threshold returns); turn handling follows the dynamic active piece. Build passed.
+
+- Added an overview-active treatment to the live cube: active cubelet is 12% larger with thick gold sticker borders and glow. Highlight refreshes when crossing the door; production build passed.
+
+- Added the live W/B Red door renderer: after U rotates Red to the right wall, a segmented red wall replaces the cutaway and omits local (0,3,0), with a gold outline. Build passed; Playwright unavailable.

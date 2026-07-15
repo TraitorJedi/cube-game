@@ -186,6 +186,19 @@ h1 {
   filter: brightness(1.18);
 }
 
+/* The selected world cubelet is the player’s current chamber. Give every
+   exposed face a bright outline and glow so it remains readable in overview. */
+.cubie.is-active-piece .sticker {
+  border-color: #ffe56a;
+  border-width: 4px;
+  box-shadow: 0 0 0 2px rgba(255, 210, 66, 0.86), 0 0 24px 8px rgba(255, 191, 48, 0.72), inset 0 0 18px rgba(255, 255, 255, 0.25), inset 0 -12px 18px rgba(0, 0, 0, 0.14);
+  filter: brightness(1.16) saturate(1.12);
+}
+
+.cubie.is-active-piece .sticker::after {
+  border-color: rgba(255, 246, 174, 0.9);
+}
+
 .sticker {
   display: grid;
   place-items: center;
@@ -472,6 +485,7 @@ code {
 
 /* The puzzle is intentionally a single, uninterrupted play surface. */
 .stage { display: block; min-height: 100svh; overflow: hidden; }
+.game-brand { position: fixed; z-index: 4; top: 22px; left: 24px; margin: 0; color: var(--ink); font-size: clamp(0.9rem, 1.8vw, 1.15rem); font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; text-shadow: 0 2px 14px rgba(0,0,0,.55); pointer-events: none; }
 .scene-shell { width: 100vw; min-height: 100svh; perspective: 1400px; opacity: 1; transition: opacity 400ms ease 120ms; }
 .mode-toggle { position: fixed; z-index: 3; left: 50%; bottom: 28px; transform: translateX(-50%); min-width: 126px; padding: 11px 16px; color: var(--ink); background: rgba(10, 12, 16, .76); border: 1px solid rgba(255,255,255,.28); border-radius: 999px; cursor: pointer; backdrop-filter: blur(10px); }
 .mode-toggle[aria-pressed="true"] { color: #06110e; background: var(--accent); border-color: var(--accent); }
@@ -481,7 +495,7 @@ code {
 .interior-canvas { width: min(88vmin, 720px); height: min(88vmin, 720px); filter: drop-shadow(0 30px 32px rgba(0,0,0,.42)); }
 .interior-canvas canvas { display: block; width: 100%; height: 100%; }
 body.little-mode .scene-shell { opacity: 0; pointer-events: none; }
-@media (max-width: 620px) { .mode-toggle { bottom: 20px; } }
+@media (max-width: 620px) { .game-brand { top: 16px; left: 18px; } .mode-toggle { bottom: 20px; } }
 
 .disclosure-panel button {
   min-height: 42px;
