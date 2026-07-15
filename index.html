@@ -5,7 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Cubesque-Ape</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><rect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%2343d9b8%22/><path d=%22M8 8h7v7H8zm9 0h7v7h-7zM8 17h7v7H8zm9 0h7v7h-7z%22 fill=%22%23090a0d%22/></svg>">
-    <link rel="stylesheet" href="styles.css?v=touch-controls-2">
+    <link rel="stylesheet" href="styles.css?v=scroll-fix-2">
+    <script>
+      // Detect mobile device to apply mobile-specific classes (e.g. for orientation warning)
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+        || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      if (isMobile) {
+        document.documentElement.classList.add("is-mobile");
+      }
+    </script>
   </head>
   <body>
     <main class="stage" aria-label="Cubesque-Ape isometric cube puzzle">
@@ -24,10 +32,50 @@
         <button type="button" class="touch-move touch-move-right" data-player-move="ArrowRight" aria-label="Move Ape right">▶</button>
         <button type="button" class="touch-move touch-move-down" data-player-move="ArrowDown" aria-label="Move Ape down">▼</button>
       </nav>
-      <div class="skin-selector" id="skinSelector" aria-label="Select Ape Suit">
-        <button class="skin-btn active" data-skin="classic" type="button">Classic</button>
-        <button class="skin-btn" data-skin="cyber" type="button">Cyber</button>
-        <button class="skin-btn" data-skin="astronaut" type="button">Space</button>
+      <button class="settings-toggle" id="settingsToggle" type="button" aria-label="Open Settings">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </button>
+
+      <!-- Settings Window Overlay -->
+      <div class="settings-modal" id="settingsModal" aria-hidden="true" hidden>
+        <div class="settings-backdrop" id="settingsBackdrop"></div>
+        <div class="settings-content">
+          <div class="settings-header">
+            <h2>Settings</h2>
+            <button class="settings-close" id="settingsClose" type="button" aria-label="Close Settings">&times;</button>
+          </div>
+          <div class="settings-body">
+            <div class="settings-section">
+              <h3>Select Ape Suit</h3>
+              <div class="skin-cards-list">
+                <div class="skin-card active" data-skin="classic">
+                  <div class="skin-card-header">
+                    <span>Classic Retro</span>
+                    <span class="skin-card-badge classic">V1</span>
+                  </div>
+                  <div class="skin-card-desc">Organic brown fur with visible eyes, no red tie.</div>
+                </div>
+                <div class="skin-card" data-skin="cyber">
+                  <div class="skin-card-header">
+                    <span>Cyber Mecha</span>
+                    <span class="skin-card-badge cyber">Cyborg</span>
+                  </div>
+                  <div class="skin-card-desc">Glow reactor chest plate, left mecha arm, and visor.</div>
+                </div>
+                <div class="skin-card" data-skin="astronaut">
+                  <div class="skin-card-header">
+                    <span>Astronaut Suit</span>
+                    <span class="skin-card-badge space">Cosmic</span>
+                  </div>
+                  <div class="skin-card-desc">Spacesuit with oxygen tanks and gold visor flipped up.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
       <button class="mode-toggle" id="modeToggle" type="button" aria-pressed="false">Little cube</button>
     </main>

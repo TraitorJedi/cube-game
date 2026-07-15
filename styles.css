@@ -20,14 +20,18 @@
   box-sizing: border-box;
 }
 
+html,
 body {
   margin: 0;
-  min-height: 100vh;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
   color: var(--ink);
   background:
     radial-gradient(circle at 70% 20%, rgba(67, 217, 184, 0.17), transparent 32rem),
     linear-gradient(135deg, #090a0d 0%, #16181f 52%, #0c0d11 100%);
-  overflow-x: hidden;
 }
 
 button,
@@ -745,6 +749,7 @@ body.little-mode .touch-move-controls { display: none !important; }
   :root {
     --tile: clamp(32px, 13.8vw, 43px);
   }
+}
 
 @media (max-width: 380px) {
   :root {
@@ -760,57 +765,208 @@ body.little-mode .touch-move-controls { display: none !important; }
   }
 }
 
-/* Skin Selector Dashboard Controls */
-.skin-selector {
+/* Settings Toggle Button */
+.settings-toggle {
   position: fixed;
   z-index: 4;
   top: 22px;
   right: 24px;
+  width: 44px;
+  height: 44px;
   display: flex;
-  gap: 4px;
+  align-items: center;
+  justify-content: center;
   background: rgba(10, 12, 16, 0.76);
   border: 1px solid rgba(255, 255, 255, 0.28);
-  border-radius: 999px;
-  padding: 4px;
+  border-radius: 50%;
+  color: var(--ink, #ffffff);
+  cursor: pointer;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
 }
 
-.skin-btn {
-  background: transparent;
-  border: none;
-  color: var(--ink);
-  opacity: 0.65;
-  padding: 6px 14px;
-  font-family: inherit;
-  font-size: 0.85rem;
-  font-weight: 600;
-  border-radius: 999px;
-  cursor: pointer;
-  transition: all 200ms ease;
-}
-
-.skin-btn:hover {
-  opacity: 1;
+.settings-toggle:hover {
+  border-color: var(--accent);
   background: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
 }
 
-.skin-btn.active {
-  opacity: 1;
-  background: var(--accent);
-  color: #06110e;
+.settings-toggle:hover svg {
+  transform: rotate(45deg);
+}
+
+.settings-toggle svg {
+  transition: transform 0.4s ease;
 }
 
 @media (max-width: 620px) {
-  .skin-selector {
+  .settings-toggle {
     top: 16px;
     right: 18px;
-    padding: 3px;
+    width: 38px;
+    height: 38px;
   }
-  .skin-btn {
-    padding: 4px 10px;
-    font-size: 0.75rem;
+  .settings-toggle svg {
+    width: 20px;
+    height: 20px;
   }
+}
+
+/* Settings Modal Drawer / Dialog */
+.settings-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+
+.settings-modal:not([hidden]) {
+  display: grid;
+  pointer-events: auto;
+  opacity: 1;
+}
+
+.settings-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 10, 15, 0.5);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  z-index: 1;
+}
+
+.settings-content {
+  position: relative;
+  z-index: 2;
+  width: 90%;
+  max-width: 440px;
+  background: rgba(20, 24, 33, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  transform: scale(0.92);
+  transition: transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.settings-modal:not([hidden]) .settings-content {
+  transform: scale(1);
+}
+
+.settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 12px;
+}
+
+.settings-header h2 {
+  font-family: inherit;
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  margin: 0;
+  color: var(--ink);
+}
+
+.settings-close {
+  background: transparent;
+  border: none;
+  color: var(--ink);
+  opacity: 0.6;
+  font-size: 2rem;
+  line-height: 0.5;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  padding: 4px;
+}
+
+.settings-close:hover {
+  opacity: 1;
+  color: var(--accent);
+}
+
+.settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.settings-section h3 {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+  margin-bottom: 12px;
+}
+
+/* Skin Selector Cards List */
+.skin-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.skin-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: all 250ms cubic-bezier(0.25, 0.8, 0.25, 1);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.skin-card:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+}
+
+.skin-card.active {
+  background: rgba(67, 217, 184, 0.08);
+  border-color: var(--accent);
+  box-shadow: 0 0 12px rgba(67, 217, 184, 0.15);
+}
+
+.skin-card-header {
+  font-size: 1rem;
+  font-weight: 700;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--ink);
+}
+
+.skin-card-badge {
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 20px;
+  letter-spacing: 0.03em;
+}
+
+.skin-card-badge.classic { background: rgba(223, 160, 118, 0.15); color: #dfa076; }
+.skin-card-badge.cyber { background: rgba(0, 229, 255, 0.15); color: #00e5ff; }
+.skin-card-badge.space { background: rgba(241, 196, 15, 0.15); color: #f1c40f; }
+
+.skin-card-desc {
+  font-size: 0.8rem;
+  opacity: 0.65;
+  line-height: 1.4;
 }
 
 /* Mobile Orientation Warning Overlay */
@@ -829,7 +985,7 @@ body.little-mode .touch-move-controls { display: none !important; }
 
 /* Only display warning on mobile devices (width < 900px) when in portrait orientation */
 @media screen and (max-width: 900px) and (orientation: portrait) {
-  .orientation-warning {
+  html.is-mobile .orientation-warning {
     display: grid;
   }
 }
@@ -875,4 +1031,3 @@ body.little-mode .touch-move-controls { display: none !important; }
     transform: rotate(0deg);
   }
 }
-

@@ -1033,15 +1033,44 @@ document.querySelectorAll("[data-player-move]").forEach((button) => {
   });
 });
 
-// Skin Selector Event Handlers
-document.querySelectorAll(".skin-btn").forEach((button) => {
-  button.addEventListener("click", () => {
-    const skinName = button.dataset.skin;
+// Settings Window Toggle and Close Handlers
+const settingsToggle = document.querySelector("#settingsToggle");
+const settingsModal = document.querySelector("#settingsModal");
+const settingsClose = document.querySelector("#settingsClose");
+const settingsBackdrop = document.querySelector("#settingsBackdrop");
+
+if (settingsToggle && settingsModal) {
+  settingsToggle.addEventListener("click", () => {
+    const isHidden = settingsModal.hasAttribute("hidden");
+    if (isHidden) {
+      settingsModal.removeAttribute("hidden");
+      settingsModal.setAttribute("aria-hidden", "false");
+    } else {
+      settingsModal.setAttribute("hidden", "");
+      settingsModal.setAttribute("aria-hidden", "true");
+    }
+  });
+}
+
+const closeSettings = () => {
+  if (settingsModal) {
+    settingsModal.setAttribute("hidden", "");
+    settingsModal.setAttribute("aria-hidden", "true");
+  }
+};
+
+if (settingsClose) settingsClose.addEventListener("click", closeSettings);
+if (settingsBackdrop) settingsBackdrop.addEventListener("click", closeSettings);
+
+// Skin Cards Selection Event Handlers
+document.querySelectorAll(".skin-card").forEach((card) => {
+  card.addEventListener("click", () => {
+    const skinName = card.dataset.skin;
     if (currentSkin === skinName) return;
-    
-    document.querySelectorAll(".skin-btn").forEach((btn) => btn.classList.remove("active"));
-    button.classList.add("active");
-    
+
+    document.querySelectorAll(".skin-card").forEach((c) => c.classList.remove("active"));
+    card.classList.add("active");
+
     interiorScene.changeSkin(skinName);
   });
 });
