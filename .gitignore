@@ -3,5 +3,8 @@ dist/
 .vite/
 .codex-remote-attachments/
 .npm-cache/
-.env
+.env*
 .env.local
+output/
+agent-files/
+docs/

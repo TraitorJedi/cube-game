@@ -1,0 +1,51 @@
+[0715/004322.762:ERROR:cc\raster\one_copy_raster_buffer_provider.cc:282] Creation of StagingBuffer's SharedImage failed.
+[0715/004322.762:ERROR:cc\raster\one_copy_raster_buffer_provider.cc:282] Creation of StagingBuffer's SharedImage failed.
+[0715/004322.762:ERROR:cc\raster\one_copy_raster_buffer_provider.cc:282] Creation of StagingBuffer's SharedImage failed.
+[0715/004323.957:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x1abc001ce800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+[0715/004324.654:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x1abc001ce800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+[0715/004325.658:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x1abc001ce800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+[0715/004326.467:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x1abc001ce800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)
+[0715/004341.686:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x3cec001c4800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+[0715/004342.869:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x3cec001c4800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+[0715/004343.654:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x3cec001c4800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+[0715/004344.489:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x3cec001c4800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)
+[0715/004628.621:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x771c001d0800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+[0715/004630.137:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x771c001d0800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+[0715/004631.030:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x771c001d0800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+[0715/004631.968:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x771c001d0800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)
+[0717/225530.666:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x171c001cfc00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+[0717/225531.019:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x171c001cfc00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+[0717/225531.109:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x171c001cfc00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+[0717/225531.166:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x171c001cfc00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)
+[0717/232046.619:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x3884001d0800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+[0717/232047.000:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x3884001d0800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+[0717/233747.282:ERROR:cc\raster\one_copy_raster_buffer_provider.cc:282] Creation of StagingBuffer's SharedImage failed.
+[0717/233747.282:ERROR:cc\raster\one_copy_raster_buffer_provider.cc:282] Creation of StagingBuffer's SharedImage failed.
+[0717/233747.282:ERROR:cc\raster\one_copy_raster_buffer_provider.cc:282] Creation of StagingBuffer's SharedImage failed.
+[0717/233747.282:ERROR:cc\raster\one_copy_raster_buffer_provider.cc:282] Creation of StagingBuffer's SharedImage failed.
+[0717/233747.283:ERROR:cc\raster\one_copy_raster_buffer_provider.cc:282] Creation of StagingBuffer's SharedImage failed.
+[0717/233747.283:ERROR:cc\raster\one_copy_raster_buffer_provider.cc:282] Creation of StagingBuffer's SharedImage failed.
+[0717/233747.283:ERROR:cc\raster\one_copy_raster_buffer_provider.cc:282] Creation of StagingBuffer's SharedImage failed.
+[0717/233747.282:ERROR:cc\raster\one_copy_raster_buffer_provider.cc:282] Creation of StagingBuffer's SharedImage failed.
+[0717/233747.283:ERROR:cc\raster\one_copy_raster_buffer_provider.cc:282] Creation of StagingBuffer's SharedImage failed.
+[0717/233747.283:ERROR:cc\raster\one_copy_raster_buffer_provider.cc:282] Creation of StagingBuffer's SharedImage failed.
+[0717/233749.412:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x5664001dc800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+[0717/233749.802:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x5664001dc800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+[0717/233749.834:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x5664001dc800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+[0717/233749.866:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x5664001dc800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)
+[0717/234749.422:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x356c001d0800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+[0717/234749.810:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x356c001d0800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+[0717/234749.851:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x356c001d0800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+[0717/234749.885:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x356c001d0800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)
+[0718/000013.448:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x718400184800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+[0718/000014.155:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x718400184800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+[0718/000014.345:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x718400184800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+[0718/000014.503:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x718400184800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)
+[0718/000207.141:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x269c0019c800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+[0718/000207.765:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x269c0019c800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+[0718/000207.941:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x269c0019c800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+[0718/000208.077:ERROR:gpu\command_buffer\service\gl_utils.cc:430] [.WebGL-0x269c0019c800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)
+[0718/205256.329:ERROR:gpu\ipc\client\command_buffer_proxy_impl.cc:285] ContextResult::kTransientFailure: Failed to send GpuControl.CreateCommandBuffer.
+[0718/205421.693:ERROR:cc\raster\one_copy_raster_buffer_provider.cc:282] Creation of StagingBuffer's SharedImage failed.
+[0718/205421.693:ERROR:cc\raster\one_copy_raster_buffer_provider.cc:282] Creation of StagingBuffer's SharedImage failed.
+[0718/205421.693:ERROR:cc\raster\one_copy_raster_buffer_provider.cc:282] Creation of StagingBuffer's SharedImage failed.

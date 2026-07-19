@@ -21,7 +21,7 @@ The production stack is **React + Three.js** (prefer `@react-three/fiber` and `@
 
 ## Live entry point
 
-`index.html` currently loads `app.js`; it is the production game source of truth. `src/main.js` and `src/engine.js` are an unfinished migration and must not receive gameplay fixes unless the migration is intentionally completed and `index.html` is switched in the same change. The pre-build entry-point check enforces this boundary.
+`index.html` currently loads `app.js`; it is the production source of truth while the React/Three replacement is brought to parity. `src/main.js` is a non-production parity candidate and must not become live until every item in `docs/react-parity-checklist.md` is verified. The pre-build entry-point check enforces this boundary.
 
 ## Core world rules
 
@@ -68,6 +68,8 @@ Optimize for evidence, not exhaustive ceremony. Run the smallest relevant check 
 - Pure engine/state change: targeted unit test or a focused deterministic script.
 - UI/input change: one focused browser verification of the changed flow, including console errors.
 - Build/config/deployment change: production build once.
+
+For ordinary UI iterations, use the Vite development server and focused browser checks; do not run `npm run build` just to refresh a browser capture. Reserve production builds for build/config/deployment changes and the final verification handoff.
 
 Do not run full test suites, repeated screenshots, broad refactors, dependency audits, or production deployments unless the change makes them relevant or the user requests them. Reuse existing checks and test helpers. Report what was verified and what was intentionally not run.
 
