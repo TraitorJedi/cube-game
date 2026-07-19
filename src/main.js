@@ -5,7 +5,7 @@ import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { generateClassicApe, generateCyberApe, generateAstronautApe } from "../voxel-art/generator.js";
-import { GRID_SIZE, FACE_COLORS, MOVE_CONFIG, createGameState, getActivePiece, getFloorFace, movePlayerInWorld, settlePlayer, turnCube } from "./engine.js";
+import { GRID_SIZE, FACE_COLORS, MOVE_CONFIG, createGameState, getActivePiece, getFloorFace, movePlayerInWorld, resolveItemCell, settlePlayer, turnCube } from "./engine.js";
 import { createPrimaryLevel, validatePlacement } from "./levels.js";
 import { hasSupabase, loadPrimaryLevel, savePrimaryLevel, getAuthClaims, onAuthChange, sendMagicLink, signOut, verifyMagicLinkFromUrl } from "./level-store.js";
 
@@ -23,7 +23,7 @@ const OPPOSITE_SIDE = { right: "left", left: "right", up: "down", down: "up", fr
 const OPPOSITE_COLOR = { blue: "green", green: "blue", white: "yellow", yellow: "white", red: "orange", orange: "red" };
 
 function interiorFaceColor(piece, side) {
-  return piece.stickers[side] ?? OPPOSITE_COLOR[piece.stickers[OPPOSITE_SIDE[side]]] ?? FACE_COLORS[side];
+  return piece.faceColors?.[side] ?? piece.stickers[side] ?? OPPOSITE_COLOR[piece.stickers[OPPOSITE_SIDE[side]]] ?? FACE_COLORS[side];
 }
 
 function rotateVector(vector, axis, angle) { const { x, y, z } = vector; if (axis === "x") return angle === 90 ? { x, y: -z, z: y } : { x, y: z, z: -y }; if (axis === "y") return angle === 90 ? { x: z, y, z: -x } : { x: -z, y, z: x }; return angle === 90 ? { x: -y, y: x, z } : { x: y, y: -x, z }; }
@@ -163,7 +163,7 @@ function addInterior(scene, piece, player, activePieceId, level, solidCell) {
   const origin = new THREE.Vector3(piece.position.x * STEP, piece.position.y * STEP, piece.position.z * STEP);
   const cell = 1;
   scene.add(new THREE.HemisphereLight(0xffffff, 0x101419, .85));
-  const items = level.items.filter((item) => item.moduleId === activePieceId);
+  const items = level.items.filter((item) => item.moduleId === activePieceId).map((item) => ({ ...item, cell: resolveItemCell(item, piece) }));
   const door = items.find((item) => item.kind === "door");
   const doorColor = door?.doorFace ?? door?.faces?.[2];
   const doorWorldFace = doorColor ? MATERIAL_FACE.find((face) => interiorFaceColor(piece, face) === doorColor) : null;

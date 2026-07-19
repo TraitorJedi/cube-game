@@ -66,7 +66,10 @@ function createPiece(x, y, z) {
   if (x === -1) stickers.left = FACE_COLORS.left;
   if (y === 1) stickers.up = FACE_COLORS.up;
   if (y === -1) stickers.down = FACE_COLORS.down;
-  return { id: moduleId({ x, y, z }), position: { x, y, z }, stickers };
+  // `stickers` only describes the visible exterior.  Chambers need the full
+  // colour frame as well: a middle piece has no red sticker, for example,
+  // but it still has a red interior-facing direction which must turn with it.
+  return { id: moduleId({ x, y, z }), position: { x, y, z }, stickers, faceColors: { ...FACE_COLORS } };
 }
 
 export function createRubiksCube() {
@@ -85,8 +88,8 @@ export function applyMove(pieces, move) {
   return pieces.map((piece) => {
     if (piece.position[config.axis] !== config.layer) return piece;
     const position = rotateVector(piece.position, config.axis, angle);
-    const stickers = Object.fromEntries(Object.entries(piece.stickers).map(([face, color]) => [vectorToFace(rotateVector(FACE_VECTORS[face], config.axis, angle)), color]));
-    return { ...piece, position, stickers };
+    const rotateFaces = (faces) => Object.fromEntries(Object.entries(faces).map(([face, color]) => [vectorToFace(rotateVector(FACE_VECTORS[face], config.axis, angle)), color]));
+    return { ...piece, position, stickers: rotateFaces(piece.stickers), faceColors: rotateFaces(piece.faceColors ?? FACE_COLORS) };
   });
 }
 
@@ -109,9 +112,45 @@ export function getActivePiece(pieces, activePieceId = ACTIVE_PIECE.id) {
 }
 
 export function getFloorFace(piece) {
-  // Stickers are keyed by their current world direction, so the lower-facing
-  // sticker identifies the active chamber's interior floor under Yellow gravity.
-  return piece?.stickers.down ?? FACE_COLORS.down;
+  // Face colours are keyed by their current world direction, so the lower
+  // direction identifies the active chamber's floor under Yellow gravity.
+  return piece?.faceColors?.down ?? piece?.stickers.down ?? FACE_COLORS.down;
+}
+
+function faceForColor(piece, color) {
+  return Object.entries(piece?.faceColors ?? FACE_COLORS).find(([, faceColor]) => faceColor === color)?.[0];
+}
+
+function cellCoordinateForFace(face, distance) {
+  const near = GRID_SIZE - 1 - distance;
+  if (face === "right") return { axis: "x", value: near };
+  if (face === "left") return { axis: "x", value: distance };
+  if (face === "up") return { axis: "y", value: near };
+  if (face === "down") return { axis: "y", value: distance };
+  if (face === "front") return { axis: "z", value: near };
+  return { axis: "z", value: distance };
+}
+
+// Placement coordinates stay attached to their named colour faces.  Resolve
+// them only when a chamber is rendered or interacted with, using that
+// cubelet's current orientation.
+export function resolveItemCell(item, piece) {
+  if (!item?.faces || !Array.isArray(item.coordinate)) return item?.cell;
+  return item.faces.reduce((cell, color, index) => {
+    const face = faceForColor(piece, color);
+    if (!face) return cell;
+    const { axis, value } = cellCoordinateForFace(face, item.coordinate[index + 3]);
+    cell[axis] = value;
+    return cell;
+  }, { x: 0, y: 0, z: 0 });
+}
+
+function doorMovementKeyForFace(face) {
+  if (face === "left") return "ArrowLeft";
+  if (face === "right") return "ArrowRight";
+  if (face === "back") return "ArrowUp";
+  if (face === "front") return "ArrowDown";
+  return null;
 }
 
 export function turnCube(state, move) {
@@ -159,10 +198,17 @@ export function getDoor(pieceId, player, key) {
 }
 
 export function movePlayerInWorld(state, key) {
-  const doors = state.level?.items ? normalizeDoors(state.level.items.filter((item) => item.kind === "door")) : DOORS;
-  const door = doors.find((candidate) => candidate.pieceId === state.activePieceId && candidate.key === key && candidate.cell.x === state.player.x && candidate.cell.y === state.player.y && candidate.cell.z === state.player.z);
+  const sourcePiece = getActivePiece(state.cube, state.activePieceId);
+  const sourceDoors = (state.level?.items ?? []).filter((item) => item.kind === "door" && item.moduleId === state.activePieceId).map(parseDoor);
+  const door = sourceDoors.find((candidate) => {
+    const cell = resolveItemCell(candidate, sourcePiece);
+    const face = faceForColor(sourcePiece, candidate.doorFace);
+    return doorMovementKeyForFace(face) === key && cell.x === state.player.x && cell.y === state.player.y && cell.z === state.player.z;
+  });
+  const targetDoor = door && (state.level?.items ?? []).filter((item) => item.kind === "door").map(parseDoor).find((candidate) => candidate.moduleId === door.targetModuleId && candidate.targetModuleId === door.moduleId);
+  const targetPiece = targetDoor && getActivePiece(state.cube, targetDoor.moduleId);
   const next = door
-    ? { ...state, activePieceId: door.targetPieceId, player: { ...door.targetCell } }
+    ? { ...state, activePieceId: door.targetModuleId, player: resolveItemCell(targetDoor, targetPiece) }
     : { ...state, player: movePlayer(state.player, key, state.solidCell) };
   const banana = next.level.items.find((item) => item.kind === "golden_banana" && item.moduleId === next.activePieceId && item.cell.x === next.player.x && item.cell.y === next.player.y && item.cell.z === next.player.z);
   return banana && !next.collectedItemIds.includes(banana.id)
@@ -175,9 +221,9 @@ function rotateInteriorCell(cell, axis, angle) {
   let next = cell;
   for (let turn = 0; turn < turns; turn += 1) {
     const { x, y, z } = next;
-    if (axis === "x") next = { x, y: GRID_SIZE - 1 - z, z: y };
-    if (axis === "y") next = { x: z, y, z: GRID_SIZE - 1 - x };
-    if (axis === "z") next = { x: GRID_SIZE - 1 - y, y: x, z };
+    if (axis === "x") next = { x, y: z, z: GRID_SIZE - 1 - y };
+    if (axis === "y") next = { x: GRID_SIZE - 1 - z, y, z: x };
+    if (axis === "z") next = { x: y, y: GRID_SIZE - 1 - x, z };
   }
   return next;
 }
