@@ -1,18 +1,33 @@
-export const GRID_SIZE = 4;
+import { GRID_SIZE, createPrimaryLevel, moduleId, coordinateArrayToCell } from "./levels.js";
+export { GRID_SIZE };
 export const INITIAL_GRAVITY_FACE = "yellow";
-export const ACTIVE_PIECE = Object.freeze({ id: "1,1,1", colors: ["red", "white", "blue"] });
-export const WHITE_BLUE_MIDDLE_PIECE = Object.freeze({ id: "1,1,0", colors: ["white", "blue"] });
+export const ACTIVE_PIECE = Object.freeze({ id: "r/w/b", colors: ["red", "white", "blue"] });
+export const WHITE_BLUE_MIDDLE_PIECE = Object.freeze({ id: "w/b", colors: ["white", "blue"] });
 export const INITIAL_SOLID_CELL = Object.freeze({ x: 0, y: 0, z: 0 });
 
-// Immutable piece IDs let the doors travel with their cubelets. The Orange
-// threshold is Blue/Orange/Yellow (3,0,0); crossing it enters the W/B middle
-// cubelet through its paired Red threshold.
-export const DOORS = Object.freeze([
-  Object.freeze({ pieceId: ACTIVE_PIECE.id, faceColor: "orange", cell: Object.freeze({ x: 3, y: 0, z: 0 }), key: "ArrowUp", targetPieceId: WHITE_BLUE_MIDDLE_PIECE.id, targetCell: Object.freeze({ x: 3, y: 0, z: 3 }) }),
-  // faceCell preserves the requested Red-face location in its local G/O/Y
-  // frame; thresholdCell is the floor-aligned world cell used for traversal.
-  Object.freeze({ pieceId: WHITE_BLUE_MIDDLE_PIECE.id, faceColor: "red", faceCell: Object.freeze({ x: 3, y: 3, z: 0 }), cell: Object.freeze({ x: 3, y: 0, z: 3 }), key: "ArrowDown", targetPieceId: ACTIVE_PIECE.id, targetCell: Object.freeze({ x: 3, y: 0, z: 0 }) }),
-]);
+// Immutable piece IDs let doors travel with their cubelets. The ordered
+// Green/Yellow/Orange (3,0,0) threshold uses Orange, the third axis, as its
+// face and crosses into the W/B middle cubelet's paired Red threshold.
+function doorMovementKey(door) {
+  if (door.doorAxis === "x") return door.cell.x === 0 ? "ArrowLeft" : "ArrowRight";
+  if (door.doorAxis === "z") return door.cell.z === 0 ? "ArrowUp" : "ArrowDown";
+  return null;
+}
+
+function parseDoor(item) {
+  const parsed = item.faces && item.axes && item.cell ? item : { ...item, ...coordinateArrayToCell(item.coordinate) };
+  return { ...parsed, doorFace: parsed.doorFace ?? parsed.faces[2], doorAxis: parsed.doorAxis ?? parsed.axes[2] };
+}
+
+function normalizeDoors(items) {
+  const parsed = items.map(parseDoor);
+  return parsed.map((door) => {
+    const target = parsed.find((candidate) => candidate.moduleId === door.targetModuleId && candidate.targetModuleId === door.moduleId);
+    return { pieceId: door.moduleId, faceColor: door.doorFace, cell: door.cell, key: doorMovementKey(door), targetPieceId: door.targetModuleId, targetCell: target?.cell ?? door.cell };
+  });
+}
+
+export const DOORS = Object.freeze(normalizeDoors(createPrimaryLevel().items.filter((item) => item.kind === "door")));
 
 export const FACE_COLORS = Object.freeze({
   front: "red", back: "orange", right: "blue", left: "green", up: "white", down: "yellow",
@@ -51,7 +66,7 @@ function createPiece(x, y, z) {
   if (x === -1) stickers.left = FACE_COLORS.left;
   if (y === 1) stickers.up = FACE_COLORS.up;
   if (y === -1) stickers.down = FACE_COLORS.down;
-  return { id: `${x},${y},${z}`, position: { x, y, z }, stickers };
+  return { id: moduleId({ x, y, z }), position: { x, y, z }, stickers };
 }
 
 export function createRubiksCube() {
@@ -61,6 +76,7 @@ export function createRubiksCube() {
 }
 
 export function applyMove(pieces, move) {
+  if (typeof move !== "string") return pieces;
   if (move.endsWith("2")) return applyMove(applyMove(pieces, move.slice(0, -1)), move.slice(0, -1));
   const inverse = move.endsWith("'");
   const config = MOVE_CONFIG[inverse ? move[0] : move];
@@ -74,13 +90,16 @@ export function applyMove(pieces, move) {
   });
 }
 
-export function createGameState() {
+export function createGameState(level = createPrimaryLevel()) {
+  const spawn = level.items.find((item) => item.kind === "spawn");
+  const obstacle = level.items.find((item) => item.kind === "obstacle");
   return {
-    mode: "cube", cube: createRubiksCube(), moves: [], history: [], material: "grid", activePieceId: ACTIVE_PIECE.id,
+    mode: "cube", cube: createRubiksCube(), level, moves: [], history: [], material: "grid", activePieceId: spawn?.moduleId ?? ACTIVE_PIECE.id,
     // These are world-horizontal grid coordinates: x is Blue/Green (right/left)
     // and z is Red/Orange (front/back). They do not rotate with the camera.
     // y is always settled to the active chamber's world-down interior face.
-    player: { x: 1, y: 0, z: 1 }, solidCell: { ...INITIAL_SOLID_CELL },
+    player: { ...(spawn?.cell ?? { x: 1, y: 0, z: 1 }) }, solidCell: { ...(obstacle?.cell ?? INITIAL_SOLID_CELL) },
+    skin: "classic", collectedItemIds: [], levelComplete: false,
     gravity: { x: 0, y: -1, z: 0, face: INITIAL_GRAVITY_FACE },
   };
 }
@@ -92,7 +111,7 @@ export function getActivePiece(pieces, activePieceId = ACTIVE_PIECE.id) {
 export function getFloorFace(piece) {
   // Stickers are keyed by their current world direction, so the lower-facing
   // sticker identifies the active chamber's interior floor under Yellow gravity.
-  return piece?.stickers.down ?? null;
+  return piece?.stickers.down ?? FACE_COLORS.down;
 }
 
 export function turnCube(state, move) {
@@ -140,9 +159,15 @@ export function getDoor(pieceId, player, key) {
 }
 
 export function movePlayerInWorld(state, key) {
-  const door = getDoor(state.activePieceId, state.player, key);
-  if (door) return { ...state, activePieceId: door.targetPieceId, player: { ...door.targetCell } };
-  return { ...state, player: movePlayer(state.player, key, state.solidCell) };
+  const doors = state.level?.items ? normalizeDoors(state.level.items.filter((item) => item.kind === "door")) : DOORS;
+  const door = doors.find((candidate) => candidate.pieceId === state.activePieceId && candidate.key === key && candidate.cell.x === state.player.x && candidate.cell.y === state.player.y && candidate.cell.z === state.player.z);
+  const next = door
+    ? { ...state, activePieceId: door.targetPieceId, player: { ...door.targetCell } }
+    : { ...state, player: movePlayer(state.player, key, state.solidCell) };
+  const banana = next.level.items.find((item) => item.kind === "golden_banana" && item.moduleId === next.activePieceId && item.cell.x === next.player.x && item.cell.y === next.player.y && item.cell.z === next.player.z);
+  return banana && !next.collectedItemIds.includes(banana.id)
+    ? { ...next, collectedItemIds: [...next.collectedItemIds, banana.id], levelComplete: true }
+    : next;
 }
 
 function rotateInteriorCell(cell, axis, angle) {

@@ -2,10 +2,10 @@ import { readFile } from "node:fs/promises";
 
 const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
 
-if (!html.includes('src="app.js"')) {
-  throw new Error("The production page must load app.js. Update the live entry point or migrate it intentionally before changing game behavior.");
+if (!/<script\b[^>]*\bsrc=["'](?:\.\/)?app\.js["']/i.test(html)) {
+  throw new Error("The production page must load app.js until the React replacement has passed the parity checklist.");
 }
 
-if (html.includes('src="src/main.js"')) {
+if (/<script\b[^>]*\bsrc=["'](?:\.?\/)?src\/main\.js["']/i.test(html)) {
   throw new Error("index.html must not load both game implementations. app.js is the current production source of truth.");
 }
