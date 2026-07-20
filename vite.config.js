@@ -12,10 +12,22 @@ export default defineConfig({
         react: resolve(root, "react.html"),
       },
       output: {
-        manualChunks: {
-          react: ["react", "react-dom"],
-          three: ["three"],
-          supabase: ["@supabase/supabase-js"],
+        manualChunks(id) {
+          const moduleId = id.replaceAll("\\", "/");
+
+          if (moduleId.includes("/node_modules/react/") ||
+              moduleId.includes("/node_modules/react-dom/") ||
+              moduleId.includes("/node_modules/scheduler/")) {
+            return "react";
+          }
+
+          if (moduleId.includes("/node_modules/three/")) {
+            return "three";
+          }
+
+          if (moduleId.includes("/node_modules/@supabase/")) {
+            return "supabase";
+          }
         },
       },
     },
