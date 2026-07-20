@@ -6,6 +6,7 @@ const root = fileURLToPath(new URL(".", import.meta.url));
 
 export default defineConfig({
   build: {
+    chunkSizeWarningLimit: 600,
     rollupOptions: {
       input: {
         app: resolve(root, "index.html"),
