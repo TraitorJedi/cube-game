@@ -5,7 +5,7 @@ import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { generateClassicApe, generateCyberApe, generateAstronautApe } from "../voxel-art/generator.js";
-import { GRID_SIZE, FACE_COLORS, MOVE_CONFIG, createGameState, getActivePiece, getFloorFace, movePlayerInWorld, resolveItemCell, settlePlayer, turnCube } from "./engine.js";
+import { GRID_SIZE, FACE_COLORS, MOVE_CONFIG, createGameState, getActivePiece, getFloorFace, movePlayerInWorld, resolveItemCell, turnCube } from "./engine.js";
 import { createPrimaryLevel, validatePlacement } from "./levels.js";
 import { hasSupabase, loadPrimaryLevel, savePrimaryLevel, getAuthClaims, onAuthChange, sendMagicLink, signOut, verifyMagicLinkFromUrl } from "./level-store.js";
 
@@ -186,17 +186,34 @@ function addInterior(scene, piece, player, activePieceId, level, solidCell) {
   if (door && door.cell && visibleFaces.has(doorWorldFace)) {
     const color = COLORS[doorColor] ?? COLORS.core; const material = new THREE.MeshStandardMaterial({ color, roughness: .82, metalness: .02, side: THREE.DoubleSide });
     const zWall = doorWorldFace === "front" || doorWorldFace === "back";
-    const wallOffset = doorWorldFace === "back" ? -2 : doorWorldFace === "front" ? 2 : doorWorldFace === "left" ? -2 : 2;
+    const xWall = doorWorldFace === "left" || doorWorldFace === "right";
+    const horizontalWall = doorWorldFace === "up" || doorWorldFace === "down";
+    const wallOffset = doorWorldFace === "back" || doorWorldFace === "left" || doorWorldFace === "down" ? -2 : 2;
     for (let row = 0; row < GRID_SIZE; row += 1) for (let column = 0; column < GRID_SIZE; column += 1) {
-      const panelX = zWall ? column : doorWorldFace === "left" ? 0 : GRID_SIZE - 1; const panelZ = zWall ? (doorWorldFace === "back" ? 0 : GRID_SIZE - 1) : column;
-      if (panelX === door.cell.x && panelZ === door.cell.z && row === door.cell.y) continue;
       const panel = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material); const lateral = -1.5 + column;
+      const panelCell = zWall
+        ? { x: column, y: row, z: doorWorldFace === "back" ? 0 : GRID_SIZE - 1 }
+        : xWall
+          ? { x: doorWorldFace === "left" ? 0 : GRID_SIZE - 1, y: row, z: column }
+          : { x: column, y: doorWorldFace === "down" ? 0 : GRID_SIZE - 1, z: row };
+      if (panelCell.x === door.cell.x && panelCell.y === door.cell.y && panelCell.z === door.cell.z) continue;
       if (zWall) { panel.position.copy(origin).add(new THREE.Vector3(lateral, -1.5 + row, wallOffset)); panel.rotation.y = doorWorldFace === "back" ? Math.PI : 0; }
-      else { panel.position.copy(origin).add(new THREE.Vector3(wallOffset, -1.5 + row, lateral)); panel.rotation.y = doorWorldFace === "left" ? -Math.PI / 2 : Math.PI / 2; }
+      else if (xWall) { panel.position.copy(origin).add(new THREE.Vector3(wallOffset, -1.5 + row, lateral)); panel.rotation.y = doorWorldFace === "left" ? -Math.PI / 2 : Math.PI / 2; }
+      else { panel.position.copy(origin).add(new THREE.Vector3(lateral, wallOffset, -1.5 + row)); panel.rotation.x = doorWorldFace === "down" ? -Math.PI / 2 : Math.PI / 2; }
       scene.add(panel);
     }
-    const threshold = new THREE.Mesh(new THREE.BoxGeometry(zWall ? .95 : .06, .018, zWall ? .06 : .95), new THREE.MeshBasicMaterial({ color: 0xffd34d }));
-    threshold.position.copy(origin).add(zWall ? new THREE.Vector3(-1.5 + door.cell.x, -1.99, wallOffset) : new THREE.Vector3(wallOffset, -1.99, -1.5 + door.cell.z)); scene.add(threshold);
+    if (horizontalWall) {
+      const outline = new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.PlaneGeometry(.94, .94)),
+        new THREE.LineBasicMaterial({ color: 0xffd34d }),
+      );
+      outline.position.copy(origin).add(new THREE.Vector3(-1.5 + door.cell.x, wallOffset + (doorWorldFace === "down" ? .012 : -.012), -1.5 + door.cell.z));
+      outline.rotation.x = Math.PI / 2;
+      scene.add(outline);
+    } else {
+      const threshold = new THREE.Mesh(new THREE.BoxGeometry(zWall ? .95 : .06, .018, zWall ? .06 : .95), new THREE.MeshBasicMaterial({ color: 0xffd34d }));
+      threshold.position.copy(origin).add(zWall ? new THREE.Vector3(-1.5 + door.cell.x, -1.99, wallOffset) : new THREE.Vector3(wallOffset, -1.99, -1.5 + door.cell.z)); scene.add(threshold);
+    }
   }
   const local = (value) => -1.5 + value;
   const pawn = createVoxelApe(level.skin ?? "classic");
@@ -389,7 +406,9 @@ function App() {
     loadPrimaryLevel().then((level) => setGame(createGameState(level))).catch(() => {});
   }, []);
   useEffect(() => { const onKey = (event) => { if (game.mode !== "interior" || !event.key.startsWith("Arrow")) return; event.preventDefault(); setGame((current) => movePlayerInWorld(current, event.key)); }; window.addEventListener("keydown", onKey, { passive: false }); return () => window.removeEventListener("keydown", onKey); }, [game.mode]);
-  const setMode = (mode) => setGame((current) => ({ ...current, mode, player: settlePlayer(current.player) }));
+  // A view-mode change does not alter world state. Player settling happens at
+  // cube-turn boundaries, where the active chamber's own obstacles are known.
+  const setMode = (mode) => setGame((current) => ({ ...current, mode }));
   const turn = (move) => setGame((current) => current.mode === "cube" && typeof move === "string" ? turnCube(current, move) : current);
   const legacyUpdateLevel = (level) => setGame((current) => ({ ...current, level }));
   const legacySave = async () => { try { const result = await savePrimaryLevel(game.level); setSaveState(result.source === "supabase" ? "Saved to Supabase." : "Saved locally."); } catch (error) { setSaveState(error.message); } };

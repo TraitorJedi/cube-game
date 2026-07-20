@@ -71,10 +71,12 @@ Optimize for evidence, not exhaustive ceremony. Run the smallest relevant check 
 
 For ordinary UI iterations, use the Vite development server and focused browser checks; do not run `npm run build` just to refresh a browser capture. Reserve production builds for build/config/deployment changes and the final verification handoff.
 
+Store agent-generated screenshots, browser captures, debug logs, and one-off verification artifacts under `agent-files/` (use `agent-files/output/` for grouped runs), not in the repository root or a root-level `output/` directory.
+
 Do not run full test suites, repeated screenshots, broad refactors, dependency audits, or production deployments unless the change makes them relevant or the user requests them. Reuse existing checks and test helpers. Report what was verified and what was intentionally not run.
 
 ## Before completing work
 
-- Confirm the altered behavior against the world rules above, especially Yellow-relative gravity after rotations.
+- Confirm the altered behavior against the world rules above
 - Keep the diff scoped and update developer documentation only when architecture, controls, or workflow changes.
 - State any remaining limitation plainly; do not claim editor functionality until it exists.

@@ -7,4 +7,6 @@ dist/
 .env.local
 output/
 agent-files/
+debug.log
 docs/
+debug.log

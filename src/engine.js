@@ -158,17 +158,18 @@ export function turnCube(state, move) {
   const config = MOVE_CONFIG[move.replace(/[2']/g, "")];
   const active = getActivePiece(state.cube, state.activePieceId);
   const activeTurns = config && active?.position[config.axis] === config.layer;
+  const obstacle = state.level?.items.find((item) => item.kind === "obstacle");
+  const obstaclePiece = obstacle && getActivePiece(state.cube, obstacle.moduleId);
+  const obstacleTurns = config && obstaclePiece?.position[config.axis] === config.layer;
   const angle = move.endsWith("'") ? -config?.angle : config?.angle;
   const turns = move.endsWith("2") ? 2 : 1;
   let player = state.player;
   let solidCell = state.solidCell;
-  if (activeTurns) {
-    for (let turn = 0; turn < turns; turn += 1) {
-      player = rotateInteriorCell(player, config.axis, angle);
-      solidCell = rotateInteriorCell(solidCell, config.axis, angle);
-    }
-    player = settlePlayer(player, solidCell);
+  for (let turn = 0; turn < turns; turn += 1) {
+    if (activeTurns) player = rotateInteriorCell(player, config.axis, angle);
+    if (obstacleTurns) solidCell = rotateInteriorCell(solidCell, config.axis, angle);
   }
+  if (activeTurns) player = settlePlayer(player, obstacle?.moduleId === state.activePieceId ? solidCell : null);
   return { ...state, cube, player, solidCell, moves: [...state.moves, move].slice(-16), history: [...state.history, move] };
 }
 
@@ -207,9 +208,10 @@ export function movePlayerInWorld(state, key) {
   });
   const targetDoor = door && (state.level?.items ?? []).filter((item) => item.kind === "door").map(parseDoor).find((candidate) => candidate.moduleId === door.targetModuleId && candidate.targetModuleId === door.moduleId);
   const targetPiece = targetDoor && getActivePiece(state.cube, targetDoor.moduleId);
+  const activeHasObstacle = state.level?.items.some((item) => item.kind === "obstacle" && item.moduleId === state.activePieceId);
   const next = door
     ? { ...state, activePieceId: door.targetModuleId, player: resolveItemCell(targetDoor, targetPiece) }
-    : { ...state, player: movePlayer(state.player, key, state.solidCell) };
+    : { ...state, player: movePlayer(state.player, key, activeHasObstacle ? state.solidCell : null) };
   const banana = next.level.items.find((item) => item.kind === "golden_banana" && item.moduleId === next.activePieceId && item.cell.x === next.player.x && item.cell.y === next.player.y && item.cell.z === next.player.z);
   return banana && !next.collectedItemIds.includes(banana.id)
     ? { ...next, collectedItemIds: [...next.collectedItemIds, banana.id], levelComplete: true }
@@ -221,19 +223,22 @@ function rotateInteriorCell(cell, axis, angle) {
   let next = cell;
   for (let turn = 0; turn < turns; turn += 1) {
     const { x, y, z } = next;
-    if (axis === "x") next = { x, y: z, z: GRID_SIZE - 1 - y };
-    if (axis === "y") next = { x: GRID_SIZE - 1 - z, y, z: x };
-    if (axis === "z") next = { x: y, y: GRID_SIZE - 1 - x, z };
+    // These are the 0..3 cell equivalents of rotateVector's +90-degree
+    // transforms. Keeping the handedness identical prevents a visible U turn
+    // from applying U' to the Ape and obstacle inside the moving cubelet.
+    if (axis === "x") next = { x, y: GRID_SIZE - 1 - z, z: y };
+    if (axis === "y") next = { x: z, y, z: GRID_SIZE - 1 - x };
+    if (axis === "z") next = { x: GRID_SIZE - 1 - y, y: x, z };
   }
   return next;
 }
 
 export function isSolidAt(x, y, z, solidCell = INITIAL_SOLID_CELL) {
-  return solidCell.x === x && solidCell.y === y && solidCell.z === z;
+  return Boolean(solidCell) && solidCell.x === x && solidCell.y === y && solidCell.z === z;
 }
 
 export function floorHeightAt(x, z, solidCell = INITIAL_SOLID_CELL, fallingFromY = GRID_SIZE - 1) {
-  return solidCell.x === x && solidCell.z === z && solidCell.y <= fallingFromY ? solidCell.y + 1 : 0;
+  return solidCell && solidCell.x === x && solidCell.z === z && solidCell.y <= fallingFromY ? solidCell.y + 1 : 0;
 }
 
 export function settlePlayer(player, solidCell = INITIAL_SOLID_CELL) { return { ...player, y: floorHeightAt(player.x, player.z, solidCell, player.y) }; }

@@ -96,7 +96,7 @@ export function createPrimaryLevel() {
       { id: "spawn", moduleId: "r/w/b", kind: "spawn", coordinate: ["g", "o", "y", 1, 1, 0] },
       { id: "obstacle", moduleId: "r/w/b", kind: "obstacle", coordinate: ["g", "o", "y", 0, 0, 0] },
       { id: "banana", moduleId: "r/w/b", kind: "golden_banana", coordinate: ["g", "o", "y", 0, 0, 1] },
-      { id: "door-rwb", moduleId: "r/w/b", kind: "door", coordinate: ["g", "y", "o", 3, 0, 0], targetModuleId: "w/b" },
+      { id: "door-rwb", moduleId: "r/w/b", kind: "door", coordinate: ["g", "w", "o", 3, 3, 0], targetModuleId: "w/b" },
       { id: "door-wb", moduleId: "w/b", kind: "door", coordinate: ["g", "y", "r", 3, 0, 0], targetModuleId: "r/w/b" },
     ],
   });
