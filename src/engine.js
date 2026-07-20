@@ -153,6 +153,21 @@ function doorMovementKeyForFace(face) {
   return null;
 }
 
+function doorwaysTouch(sourceDoor, sourcePiece, targetDoor, targetPiece) {
+  const sourceFace = faceForColor(sourcePiece, sourceDoor.doorFace);
+  const targetFace = faceForColor(targetPiece, targetDoor.doorFace);
+  const sourceVector = FACE_VECTORS[sourceFace];
+  const targetVector = FACE_VECTORS[targetFace];
+  if (!sourceVector || !targetVector) return false;
+
+  return sourceVector.x === -targetVector.x
+    && sourceVector.y === -targetVector.y
+    && sourceVector.z === -targetVector.z
+    && targetPiece.position.x - sourcePiece.position.x === sourceVector.x
+    && targetPiece.position.y - sourcePiece.position.y === sourceVector.y
+    && targetPiece.position.z - sourcePiece.position.z === sourceVector.z;
+}
+
 export function turnCube(state, move) {
   const cube = applyMove(state.cube, move);
   const config = MOVE_CONFIG[move.replace(/[2']/g, "")];
@@ -199,6 +214,9 @@ export function getDoor(pieceId, player, key) {
 }
 
 export function movePlayerInWorld(state, key) {
+  // The level-complete overlay is modal in the legacy game. Keep the model
+  // inert too, so keyboard and touch input cannot alter a completed puzzle.
+  if (state.levelComplete) return state;
   const sourcePiece = getActivePiece(state.cube, state.activePieceId);
   const sourceDoors = (state.level?.items ?? []).filter((item) => item.kind === "door" && item.moduleId === state.activePieceId).map(parseDoor);
   const door = sourceDoors.find((candidate) => {
@@ -208,11 +226,18 @@ export function movePlayerInWorld(state, key) {
   });
   const targetDoor = door && (state.level?.items ?? []).filter((item) => item.kind === "door").map(parseDoor).find((candidate) => candidate.moduleId === door.targetModuleId && candidate.targetModuleId === door.moduleId);
   const targetPiece = targetDoor && getActivePiece(state.cube, targetDoor.moduleId);
+  const canTraverseDoor = door && targetDoor && sourcePiece && targetPiece
+    && doorwaysTouch(door, sourcePiece, targetDoor, targetPiece);
   const activeHasObstacle = state.level?.items.some((item) => item.kind === "obstacle" && item.moduleId === state.activePieceId);
-  const next = door
+  const next = canTraverseDoor
     ? { ...state, activePieceId: door.targetModuleId, player: resolveItemCell(targetDoor, targetPiece) }
     : { ...state, player: movePlayer(state.player, key, activeHasObstacle ? state.solidCell : null) };
-  const banana = next.level.items.find((item) => item.kind === "golden_banana" && item.moduleId === next.activePieceId && item.cell.x === next.player.x && item.cell.y === next.player.y && item.cell.z === next.player.z);
+  const activePiece = getActivePiece(next.cube, next.activePieceId);
+  const banana = next.level.items.find((item) => {
+    if (item.kind !== "golden_banana" || item.moduleId !== next.activePieceId) return false;
+    const cell = resolveItemCell(item, activePiece);
+    return cell?.x === next.player.x && cell?.y === next.player.y && cell?.z === next.player.z;
+  });
   return banana && !next.collectedItemIds.includes(banana.id)
     ? { ...next, collectedItemIds: [...next.collectedItemIds, banana.id], levelComplete: true }
     : next;
