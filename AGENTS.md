@@ -69,6 +69,8 @@ Optimize for evidence, not exhaustive ceremony. Run the smallest relevant check 
 - UI/input change: one focused browser verification of the changed flow, including console errors.
 - Build/config/deployment change: production build once.
 
+Do not run Playwright tests or Playwright-driven browser checks unless the user explicitly requests them.
+
 For ordinary UI iterations, use the Vite development server and focused browser checks; do not run `npm run build` just to refresh a browser capture. Reserve production builds for build/config/deployment changes and the final verification handoff.
 
 Store agent-generated screenshots, browser captures, debug logs, and one-off verification artifacts under `agent-files/` (use `agent-files/output/` for grouped runs), not in the repository root or a root-level `output/` directory.

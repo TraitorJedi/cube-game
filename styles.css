@@ -493,6 +493,22 @@ code {
 .scene-shell { width: 100vw; min-height: 100svh; perspective: 1400px; opacity: 1; transition: opacity 400ms ease 120ms; }
 .mode-toggle { position: fixed; z-index: 3; left: 50%; bottom: 28px; transform: translateX(-50%); min-width: 126px; padding: 11px 16px; color: var(--ink); background: rgba(10, 12, 16, .76); border: 1px solid rgba(255,255,255,.28); border-radius: 999px; cursor: pointer; backdrop-filter: blur(10px); }
 .mode-toggle[aria-pressed="true"] { color: #06110e; background: var(--accent); border-color: var(--accent); }
+.fullscreen-toggle {
+  position: fixed;
+  z-index: 4;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(20px, env(safe-area-inset-bottom));
+  display: none;
+  min-width: 112px;
+  padding: 11px 16px;
+  color: var(--ink);
+  background: rgba(10, 12, 16, .76);
+  border: 1px solid rgba(255,255,255,.28);
+  border-radius: 999px;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+}
+.fullscreen-toggle[aria-pressed="true"] { color: #06110e; background: var(--accent); border-color: var(--accent); }
 .little-view { position: fixed; inset: 0; z-index: 2; display: grid; place-items: center; pointer-events: none; opacity: 0; transform: scale(.9); transition: opacity 260ms ease, transform 420ms cubic-bezier(.2,.8,.2,1); }
 .little-view[hidden] { display: none; }
 .little-view.is-visible { opacity: 1; transform: scale(1); }
@@ -539,14 +555,17 @@ body.little-mode .scene-shell { opacity: 0; pointer-events: none; }
 }
 @media (max-width: 620px) { .game-brand { top: 16px; left: 18px; } .mode-toggle { bottom: max(20px, env(safe-area-inset-bottom)); } }
 
-/* Keep the mode switch out of the active chamber on touch-sized screens. */
+/* Keep the mode switch thumb-accessible on mobile-sized screens. The React
+   entry does not add the legacy `html.is-mobile` marker, so the viewport
+   itself is the reliable shared signal for both implementations. */
 @media (max-width: 900px) {
-  html.is-mobile .mode-toggle {
+  .mode-toggle {
     left: max(18px, env(safe-area-inset-left));
     right: auto;
     bottom: max(20px, env(safe-area-inset-bottom));
     transform: none;
   }
+  .fullscreen-toggle { display: block; }
 }
 
 .disclosure-panel button {
@@ -1106,6 +1125,23 @@ body.little-mode .scene-shell { opacity: 0; pointer-events: none; }
 
 /* React game and level-design workspace */
 #root, .app { min-height: 100vh; }
+#root .stage {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  width: 100dvw;
+  height: 100dvh;
+  min-height: 0;
+}
+#root .stage > .scene-shell {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  min-height: 0;
+  margin: 0;
+}
 .app { position: relative; display: grid; grid-template-columns: minmax(260px, 360px) minmax(0, 1fr); grid-template-rows: 1fr; overflow: hidden; }
 .cube-panel, .brand { z-index: 2; padding: clamp(24px, 4vw, 60px); align-self: start; pointer-events: auto; }
 .cube-panel h1, .brand h1 { font-size: clamp(3rem, 6vw, 6.5rem); }

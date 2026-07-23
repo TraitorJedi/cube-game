@@ -11,6 +11,8 @@ import { hasSupabase, loadPrimaryLevel, savePrimaryLevel, getAuthClaims, onAuthC
 
 const { createElement: h } = React;
 const STEP = 1.92;
+const CUBE_FRAME_HALF_EXTENT = 3.05;
+const MOBILE_FRAME_FILL = .96;
 // Palette retained from the original Cube Explorer design.
 const COLORS = { red: 0xd83a34, orange: 0xf28b24, white: 0xf7f3e7, yellow: 0xf4d13d, blue: 0x246fe5, green: 0x2fb56d, core: 0x16181f };
 
@@ -116,6 +118,32 @@ function legacyCubePixelSize() {
         : Math.min(Math.max(vmin * .08, 42), 74);
   const gap = isSmall ? Math.min(Math.max(window.innerWidth * .012, 3), 5) : Math.min(Math.max(vmin * .007, 3), 6);
   return (tile + gap) * 3;
+}
+
+function mobileOverviewDistance(width, height, viewYaw, viewPitch) {
+  const aspect = Math.max(1, width) / Math.max(1, height);
+  const tangent = Math.tan(THREE.MathUtils.degToRad(38 / 2));
+  const sinYaw = Math.sin(viewYaw), cosYaw = Math.cos(viewYaw);
+  const sinPitch = Math.sin(viewPitch), cosPitch = Math.cos(viewPitch);
+  let distance = 0;
+
+  // Fit a padded bound around all eight World Cube corners into the current
+  // perspective frustum. Using the projected silhouette instead of a fixed
+  // sphere lets each phone orientation zoom closer without clipping a side.
+  for (const x of [-CUBE_FRAME_HALF_EXTENT, CUBE_FRAME_HALF_EXTENT]) {
+    for (const y of [-CUBE_FRAME_HALF_EXTENT, CUBE_FRAME_HALF_EXTENT]) {
+      for (const z of [-CUBE_FRAME_HALF_EXTENT, CUBE_FRAME_HALF_EXTENT]) {
+        const cameraX = x * cosYaw - z * sinYaw;
+        const cameraY = -x * sinYaw * sinPitch + y * cosPitch - z * cosYaw * sinPitch;
+        const depthOffset = -x * sinYaw * cosPitch - y * sinPitch - z * cosYaw * cosPitch;
+        const horizontalFit = Math.abs(cameraX) / (tangent * aspect * MOBILE_FRAME_FILL) - depthOffset;
+        const verticalFit = Math.abs(cameraY) / (tangent * MOBILE_FRAME_FILL) - depthOffset;
+        distance = Math.max(distance, horizontalFit, verticalFit);
+      }
+    }
+  }
+
+  return distance;
 }
 
 // Same release curve as app.js's `.cubie` transform transition:
@@ -319,7 +347,13 @@ function CubeScene({ game, onTurn }) {
       // The legacy chamber rendered into an 88vmin square nested in the full
       // stage. Its equivalent framing in this full-viewport canvas needs a
       // little more camera distance to retain the same calm margin.
-      const distance = current.mode === "interior" ? 14.6 : 33;
+      const { clientWidth = 1, clientHeight = 1 } = host.current ?? {};
+      // Mobile uses the current projected silhouette for a near-fullscreen
+      // contain fit. Wider desktop layouts retain the established framing.
+      const overviewDistance = clientWidth <= 900
+        ? mobileOverviewDistance(clientWidth, clientHeight, yaw.current, pitch.current)
+        : 17.5 * Math.max(1, clientHeight / Math.max(1, clientWidth));
+      const distance = current.mode === "interior" ? 14.6 : overviewDistance;
       const target = current.mode === "interior" && activePiece
         ? new THREE.Vector3(activePiece.position.x * STEP, activePiece.position.y * STEP - .4, activePiece.position.z * STEP)
         : new THREE.Vector3();
@@ -377,6 +411,38 @@ function AuthControl() {
   return h("form", { className: "auth-control", onSubmit: submit }, h("input", { type: "email", value: email, required: true, placeholder: "designer@email.com", "aria-label": "Email address", onChange: (event) => setEmail(event.target.value) }), h("button", { type: "submit" }, "Email sign-in"), status && h("span", { role: "status" }, status));
 }
 
+function FullscreenControl({ className = "" }) {
+  const root = document.documentElement;
+  const request = root.requestFullscreen?.bind(root) ?? root.webkitRequestFullscreen?.bind(root);
+  const exit = document.exitFullscreen?.bind(document) ?? document.webkitExitFullscreen?.bind(document);
+  const fullscreenElement = () => document.fullscreenElement ?? document.webkitFullscreenElement;
+  const supported = Boolean(request && exit);
+  const [active, setActive] = useState(Boolean(fullscreenElement()));
+  useEffect(() => {
+    if (!supported) return undefined;
+    const update = () => setActive(Boolean(fullscreenElement()));
+    document.addEventListener("fullscreenchange", update);
+    document.addEventListener("webkitfullscreenchange", update);
+    return () => {
+      document.removeEventListener("fullscreenchange", update);
+      document.removeEventListener("webkitfullscreenchange", update);
+    };
+  }, [supported]);
+  if (!supported) return null;
+  const toggle = async () => {
+    if (fullscreenElement()) {
+      await exit();
+      return;
+    }
+    try {
+      await request({ navigationUI: "hide" });
+    } catch {
+      await request();
+    }
+  };
+  return h("button", { className, type: "button", onClick: toggle, "aria-pressed": active }, active ? "Exit fullscreen" : "Fullscreen");
+}
+
 function SkinControl({ skin, onChange }) {
   return h("label", { className: "skin-control" }, "Ape suit", h("select", { value: skin, onChange: (event) => onChange(event.target.value) }, h("option", { value: "classic" }, "Classic Retro"), h("option", { value: "cyber" }, "Cyber Mecha"), h("option", { value: "astronaut" }, "Astronaut")));
 }
@@ -385,6 +451,7 @@ function LegacyGameShell({ game, setGame, settingsOpen, setSettingsOpen, editorO
   return h("main", { className: "stage", "aria-label": "Cubesque-Ape isometric cube puzzle" },
     h("p", { className: "game-brand" }, "Cubesque-Ape"), h("div", { className: "scene-shell" }, h(CubeScene, { game, onTurn: turn })),
     h("button", { className: "settings-toggle", type: "button", "aria-label": "Open Settings", onClick: () => setSettingsOpen(true) }, "⚙"),
+    h(FullscreenControl, { className: "fullscreen-toggle" }),
     h("div", { className: "settings-modal", hidden: !settingsOpen, "aria-hidden": !settingsOpen }, h("div", { className: "settings-backdrop", onClick: () => setSettingsOpen(false) }), h("div", { className: "settings-content" }, h("div", { className: "settings-header" }, h("h2", null, "Settings"), h("button", { className: "settings-close", type: "button", onClick: () => setSettingsOpen(false) }, "×")), h("div", { className: "settings-body" }, h("div", { className: "settings-section" }, h("h3", null, "Select Ape Suit"), h("div", { className: "skin-cards-list" }, [["classic", "Classic Retro", "Organic brown fur with visible eyes, no red tie."], ["cyber", "Cyber Mecha", "Glow reactor chest plate, left mecha arm, and visor."], ["astronaut", "Astronaut Suit", "Spacesuit with oxygen tanks and gold visor flipped up."]].map(([skin, title, description]) => h("button", { type: "button", key: skin, className: `skin-card ${game.skin === skin ? "active" : ""}`, onClick: () => setGame((current) => ({ ...current, skin })) }, h("span", { className: "skin-card-header" }, title), h("span", { className: "skin-card-desc" }, description))))), h("div", { className: "settings-section settings-actions" }, h(AuthControl), h("button", { type: "button", onClick: save }, "Save level"), h("button", { type: "button", onClick: () => setEditorOpen((open) => !open) }, editorOpen ? "Close level editor" : "Level editor"), saveState && h("p", { role: "status" }, saveState))))),
     editorOpen && h(LevelEditor, { level: game.level, onChange: updateLevel }),
     game.levelComplete && h("div", { className: "victory-modal", role: "dialog", "aria-modal": true }, h("div", { className: "victory-backdrop" }), h("div", { className: "victory-content" }, h("p", { className: "victory-kicker" }, "Golden banana collected"), h("h2", null, "Congrats, you have beat the level!"), h("button", { className: "victory-continue", type: "button", autoFocus: true, onClick: () => setGame(createGameState(game.level)) }, "Continue"))),
