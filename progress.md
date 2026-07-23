@@ -2,6 +2,8 @@ Original prompt: I'm missing the ability to move the center rings, also some of 
 
 ## Progress
 
+- React mobile edge-to-edge stage (2026-07-23): found that the legacy `max-width: 980px` breakpoint was overriding React's full-screen scene with a `58vh` canvas and top margin. Added React-root-scoped fixed/dynamic-viewport stage rules so the title stays overlayed and consumes no canvas space. The React entry now opts into safe-area viewport fitting and dark browser theme chrome. Supported mobile browsers show an explicit bottom-right Fullscreen / Exit fullscreen control that requests hidden navigation UI; Android/iOS system gesture areas remain controlled by the OS outside fullscreen. No Playwright check was run per repository instruction.
+
 - React mobile mode-toggle placement (2026-07-23): removed the legacy-only `html.is-mobile` requirement from the existing small-screen `.mode-toggle` rule. The React Little cube / Big cube button now anchors to the bottom-left safe area at viewport widths up to 900px, while wider desktop layouts remain centered. No Playwright check was run per repository instruction.
 
 - React mobile orientation scaling (2026-07-23): replaced the fixed Cube-mode camera distance with responsive projected-bounds framing. Mobile Cube mode fits a padded bound around all eight World Cube corners into 96% of the current perspective frustum, allowing portrait and landscape views to zoom closer and use nearly the full canvas without clipping visible sides. Wider desktop layouts keep their established framing. Per repository instruction, no further Playwright verification was run.

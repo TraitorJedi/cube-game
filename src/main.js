@@ -411,6 +411,38 @@ function AuthControl() {
   return h("form", { className: "auth-control", onSubmit: submit }, h("input", { type: "email", value: email, required: true, placeholder: "designer@email.com", "aria-label": "Email address", onChange: (event) => setEmail(event.target.value) }), h("button", { type: "submit" }, "Email sign-in"), status && h("span", { role: "status" }, status));
 }
 
+function FullscreenControl({ className = "" }) {
+  const root = document.documentElement;
+  const request = root.requestFullscreen?.bind(root) ?? root.webkitRequestFullscreen?.bind(root);
+  const exit = document.exitFullscreen?.bind(document) ?? document.webkitExitFullscreen?.bind(document);
+  const fullscreenElement = () => document.fullscreenElement ?? document.webkitFullscreenElement;
+  const supported = Boolean(request && exit);
+  const [active, setActive] = useState(Boolean(fullscreenElement()));
+  useEffect(() => {
+    if (!supported) return undefined;
+    const update = () => setActive(Boolean(fullscreenElement()));
+    document.addEventListener("fullscreenchange", update);
+    document.addEventListener("webkitfullscreenchange", update);
+    return () => {
+      document.removeEventListener("fullscreenchange", update);
+      document.removeEventListener("webkitfullscreenchange", update);
+    };
+  }, [supported]);
+  if (!supported) return null;
+  const toggle = async () => {
+    if (fullscreenElement()) {
+      await exit();
+      return;
+    }
+    try {
+      await request({ navigationUI: "hide" });
+    } catch {
+      await request();
+    }
+  };
+  return h("button", { className, type: "button", onClick: toggle, "aria-pressed": active }, active ? "Exit fullscreen" : "Fullscreen");
+}
+
 function SkinControl({ skin, onChange }) {
   return h("label", { className: "skin-control" }, "Ape suit", h("select", { value: skin, onChange: (event) => onChange(event.target.value) }, h("option", { value: "classic" }, "Classic Retro"), h("option", { value: "cyber" }, "Cyber Mecha"), h("option", { value: "astronaut" }, "Astronaut")));
 }
@@ -419,6 +451,7 @@ function LegacyGameShell({ game, setGame, settingsOpen, setSettingsOpen, editorO
   return h("main", { className: "stage", "aria-label": "Cubesque-Ape isometric cube puzzle" },
     h("p", { className: "game-brand" }, "Cubesque-Ape"), h("div", { className: "scene-shell" }, h(CubeScene, { game, onTurn: turn })),
     h("button", { className: "settings-toggle", type: "button", "aria-label": "Open Settings", onClick: () => setSettingsOpen(true) }, "⚙"),
+    h(FullscreenControl, { className: "fullscreen-toggle" }),
     h("div", { className: "settings-modal", hidden: !settingsOpen, "aria-hidden": !settingsOpen }, h("div", { className: "settings-backdrop", onClick: () => setSettingsOpen(false) }), h("div", { className: "settings-content" }, h("div", { className: "settings-header" }, h("h2", null, "Settings"), h("button", { className: "settings-close", type: "button", onClick: () => setSettingsOpen(false) }, "×")), h("div", { className: "settings-body" }, h("div", { className: "settings-section" }, h("h3", null, "Select Ape Suit"), h("div", { className: "skin-cards-list" }, [["classic", "Classic Retro", "Organic brown fur with visible eyes, no red tie."], ["cyber", "Cyber Mecha", "Glow reactor chest plate, left mecha arm, and visor."], ["astronaut", "Astronaut Suit", "Spacesuit with oxygen tanks and gold visor flipped up."]].map(([skin, title, description]) => h("button", { type: "button", key: skin, className: `skin-card ${game.skin === skin ? "active" : ""}`, onClick: () => setGame((current) => ({ ...current, skin })) }, h("span", { className: "skin-card-header" }, title), h("span", { className: "skin-card-desc" }, description))))), h("div", { className: "settings-section settings-actions" }, h(AuthControl), h("button", { type: "button", onClick: save }, "Save level"), h("button", { type: "button", onClick: () => setEditorOpen((open) => !open) }, editorOpen ? "Close level editor" : "Level editor"), saveState && h("p", { role: "status" }, saveState))))),
     editorOpen && h(LevelEditor, { level: game.level, onChange: updateLevel }),
     game.levelComplete && h("div", { className: "victory-modal", role: "dialog", "aria-modal": true }, h("div", { className: "victory-backdrop" }), h("div", { className: "victory-content" }, h("p", { className: "victory-kicker" }, "Golden banana collected"), h("h2", null, "Congrats, you have beat the level!"), h("button", { className: "victory-continue", type: "button", autoFocus: true, onClick: () => setGame(createGameState(game.level)) }, "Continue"))),
