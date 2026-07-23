@@ -2,7 +2,9 @@ Original prompt: I'm missing the ability to move the center rings, also some of 
 
 ## Progress
 
-- React mobile orientation scaling (2026-07-23): replaced the fixed Cube-mode camera distance with contain-style responsive framing. Portrait keeps its established width-limited composition, while landscape uses the shorter viewport height as the limiting axis so the World Cube grows to the largest safe size instead of shrinking with a fixed distance. Per the user's new repository instruction, no further Playwright verification was run.
+- React mobile mode-toggle placement (2026-07-23): removed the legacy-only `html.is-mobile` requirement from the existing small-screen `.mode-toggle` rule. The React Little cube / Big cube button now anchors to the bottom-left safe area at viewport widths up to 900px, while wider desktop layouts remain centered. No Playwright check was run per repository instruction.
+
+- React mobile orientation scaling (2026-07-23): replaced the fixed Cube-mode camera distance with responsive projected-bounds framing. Mobile Cube mode fits a padded bound around all eight World Cube corners into 96% of the current perspective frustum, allowing portrait and landscape views to zoom closer and use nearly the full canvas without clipping visible sides. Wider desktop layouts keep their established framing. Per repository instruction, no further Playwright verification was run.
 
 - Vercel Vite 8 build fix (2026-07-19): converted `vite.config.js` from the removed object-form `manualChunks` option to the supported function form while retaining the React, Three.js, and Supabase vendor groupings. The chunk-size warning threshold is 600 kB to accommodate the intentionally isolated 516.21 kB Three.js bundle. `npm.cmd run build` now passes cleanly with Vite 8.1.5 (67 modules transformed). A production-preview smoke capture at `agent-files/output/vercel-build-fix/shot-0.png` was visually inspected and rendered the live cube correctly. The browser reported the pre-existing local Vercel Analytics 404, unrelated to chunk loading; no chunk/module load error occurred.
 
