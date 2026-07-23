@@ -1,0 +1,77 @@
+import { createClient } from "@supabase/supabase-js";
+import { createPrimaryLevel, validateLevel } from "./levels.js";
+
+const LOCAL_KEY = "cubesque-ape:primary-world";
+const url = import.meta.env.VITE_SUPABASE_URL;
+const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const supabase = url && key ? createClient(url, key) : null;
+
+export function loadLocalLevel() {
+  try { return validateLevel(JSON.parse(localStorage.getItem(LOCAL_KEY))) } catch { return createPrimaryLevel(); }
+}
+export function saveLocalLevel(level) { const checked = validateLevel(level); localStorage.setItem(LOCAL_KEY, JSON.stringify(checked)); return checked; }
+export function hasSupabase() { return Boolean(supabase); }
+
+export async function getAuthClaims() {
+  if (!supabase) return null;
+  const { data, error } = await supabase.auth.getClaims();
+  if (error) throw error;
+  return data.claims ?? null;
+}
+
+export function onAuthChange(callback) {
+  if (!supabase) return () => {};
+  const { data: { subscription } } = supabase.auth.onAuthStateChange(() => { getAuthClaims().then(callback).catch(() => callback(null)); });
+  return () => subscription.unsubscribe();
+}
+
+export async function sendMagicLink(email) {
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } });
+  if (error) throw error;
+}
+
+export async function verifyMagicLinkFromUrl() {
+  if (!supabase) return { verified: false };
+  const params = new URLSearchParams(window.location.search);
+  const token_hash = params.get("token_hash");
+  if (!token_hash) return { verified: false };
+  const { error } = await supabase.auth.verifyOtp({ token_hash, type: params.get("type") || "email" });
+  if (error) throw error;
+  window.history.replaceState({}, document.title, window.location.pathname);
+  return { verified: true };
+}
+
+export async function signOut() {
+  if (!supabase) return;
+  const { error } = await supabase.auth.signOut();
+  if (error) throw error;
+}
+
+export async function loadPrimaryLevel() {
+  if (!supabase) return loadLocalLevel();
+  const { data: level, error } = await supabase.from("levels").select("id, slug, name").eq("slug", "primary-world").single();
+  if (error || !level) return loadLocalLevel();
+  const [{ data: modules, error: moduleError }, { data: items, error: itemError }] = await Promise.all([
+    supabase.from("level_modules").select("module_id, label, position, colors").eq("level_id", level.id),
+    supabase.from("level_items").select("id, module_id, kind, coordinate, target_module_id").eq("level_id", level.id),
+  ]);
+  if (moduleError || itemError) return loadLocalLevel();
+  return validateLevel({ ...level, modules: modules.map((row) => ({ id: row.module_id, label: row.label, position: row.position, colors: row.colors })), items: items.map((row) => ({ id: row.id, moduleId: row.module_id, kind: row.kind, coordinate: row.coordinate, targetModuleId: row.target_module_id })) });
+}
+
+export async function savePrimaryLevel(level) {
+  const checked = saveLocalLevel(level);
+  if (!supabase) return { source: "local" };
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) throw new Error("Sign in to Supabase before saving shared level changes.");
+  const { data: saved, error } = await supabase.from("levels").upsert({ slug: "primary-world", name: checked.name, owner_id: auth.user.id }, { onConflict: "slug" }).select("id").single();
+  if (error) throw error;
+  await supabase.from("level_modules").delete().eq("level_id", saved.id);
+  await supabase.from("level_items").delete().eq("level_id", saved.id);
+  const { error: writeError } = await supabase.from("level_modules").insert(checked.modules.map((module) => ({ level_id: saved.id, module_id: module.id, label: module.label, position: module.position, colors: module.colors })));
+  if (writeError) throw writeError;
+  const { error: itemError } = await supabase.from("level_items").insert(checked.items.map((item) => ({ level_id: saved.id, id: item.id, module_id: item.moduleId, kind: item.kind, coordinate: item.coordinate, target_module_id: item.targetModuleId ?? null })));
+  if (itemError) throw itemError;
+  return { source: "supabase" };
+}

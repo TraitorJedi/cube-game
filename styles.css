@@ -504,7 +504,7 @@ body.little-mode .scene-shell { opacity: 0; pointer-events: none; }
   z-index: 4;
   right: max(18px, env(safe-area-inset-right));
   bottom: max(88px, calc(env(safe-area-inset-bottom) + 72px));
-  display: none !important;
+  display: none;
   grid-template: repeat(3, 52px) / repeat(3, 52px);
   gap: 5px;
   pointer-events: auto;
@@ -531,9 +531,11 @@ body.little-mode .scene-shell { opacity: 0; pointer-events: none; }
 .touch-move-left { grid-area: 2 / 1; }
 .touch-move-right { grid-area: 2 / 3; }
 .touch-move-down { grid-area: 3 / 2; }
-body.little-mode .touch-move-controls { display: none !important; }
 @media screen and (max-width: 1024px) {
-  body.little-mode .touch-move-controls { display: grid !important; }
+  /* React renders this control only in Interior mode.  The legacy
+     `little-mode` body class is not present in the React preview, so using
+     it here left touch players with no way to move the Ape. */
+  .touch-move-controls { display: grid; }
 }
 @media (max-width: 620px) { .game-brand { top: 16px; left: 18px; } .mode-toggle { bottom: max(20px, env(safe-area-inset-bottom)); } }
 
@@ -1101,3 +1103,27 @@ body.little-mode .touch-move-controls { display: none !important; }
     transform: rotate(0deg);
   }
 }
+
+/* React game and level-design workspace */
+#root, .app { min-height: 100vh; }
+.app { position: relative; display: grid; grid-template-columns: minmax(260px, 360px) minmax(0, 1fr); grid-template-rows: 1fr; overflow: hidden; }
+.cube-panel, .brand { z-index: 2; padding: clamp(24px, 4vw, 60px); align-self: start; pointer-events: auto; }
+.cube-panel h1, .brand h1 { font-size: clamp(3rem, 6vw, 6.5rem); }
+.cube-toolbar { display: flex; gap: 22px; margin-top: 24px; color: var(--muted); }
+.cube-toolbar h2 { font-size: .75rem; color: var(--ink); text-transform: uppercase; letter-spacing: .1em; }
+.chip { padding: 7px 10px; margin-right: 6px; }
+.chip.is-active, .primary-action { background: var(--accent); color: #07100e; border-color: var(--accent); }
+.face-controls { display: grid; grid-template-columns: repeat(6, 36px); gap: 5px; margin-top: 22px; }
+.face-controls button { min-height: 31px; }
+.scene-host { position: absolute; inset: 0; z-index: 0; touch-action: none; }
+.scene-host canvas { width: 100%; height: 100%; display: block; }
+.hud { position: absolute; z-index: 2; top: 30px; right: 32px; min-width: 190px; padding: 14px 16px; background: rgba(9,10,13,.72); border: 1px solid rgba(255,255,255,.13); backdrop-filter: blur(12px); }
+.hud p { margin: 0; color: var(--muted); font-size: .76rem; }.hud strong { display: block; margin: 5px 0 9px; }
+.mode-switch, .save-controls { position: absolute; z-index: 3; display: flex; gap: 8px; left: 32px; bottom: 28px; }
+.save-controls { left: auto; right: 32px; bottom: 30px; align-items: center; font-size: .78rem; color: var(--muted); }
+.auth-control { display: flex; align-items: center; gap: 7px; max-width: 330px; }.auth-control input { width: 150px; padding: 8px; color: var(--ink); background: #181b20; border: 1px solid rgba(255,255,255,.18); border-radius: 6px; }.auth-control span { max-width: 170px; }
+.mode-switch button, .save-controls button, .level-editor button { border: 1px solid rgba(255,255,255,.18); background: #181b20; color: var(--ink); padding: 9px 12px; cursor: pointer; border-radius: 6px; }
+.instructions { position: absolute; z-index: 2; left: 32px; bottom: 78px; color: var(--muted); font-size: .82rem; max-width: 360px; }
+.level-editor { position: absolute; z-index: 4; top: 0; right: 0; bottom: 0; width: min(390px, 100vw); overflow: auto; padding: 28px; background: #101318ee; border-left: 1px solid rgba(255,255,255,.14); backdrop-filter: blur(20px); }
+.level-editor h2 { margin: 0 0 20px; font-size: 1.5rem; }.level-editor label { display: grid; gap: 7px; margin: 15px 0; color: var(--muted); font-size: .8rem; }.level-editor input, .level-editor select { width: 100%; padding: 10px; color: var(--ink); background: #191d23; border: 1px solid rgba(255,255,255,.16); border-radius: 5px; }.coordinate-help { color: var(--muted); font-size: .76rem; line-height: 1.45; }.item-list { display: grid; gap: 8px; margin-top: 20px; }.placed-item { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; padding: 10px; background: rgba(255,255,255,.04); font-size: .76rem; }.placed-item code { color: var(--accent); }.placed-item button { grid-column: 2; grid-row: 1 / 3; align-self: center; padding: 5px 7px; font-size: .7rem; }
+@media (max-width: 720px) { .app { grid-template-columns: 1fr; }.cube-panel, .brand { padding: 22px; }.hud { top: 18px; right: 18px; }.mode-switch { left: 18px; bottom: 18px; }.save-controls { right: 18px; bottom: 62px; }.instructions { left: 18px; bottom: 105px; }.face-controls { grid-template-columns: repeat(6, 31px); } }

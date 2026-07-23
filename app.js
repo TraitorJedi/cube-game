@@ -99,7 +99,6 @@ let drag = null;
 let faceDrag = null;
 let rotation = { x: -24, y: -34 };
 let toastTimer = 0;
-let demoTimer = 0;
 let turnQueue = Promise.resolve();
 let activeMove = null;
 let dragPreview = null;
@@ -816,56 +815,6 @@ function runMoves(sequence, record = true) {
   return turnQueue;
 }
 
-function setActive(button, groupSelector, active = true) {
-  document.querySelectorAll(groupSelector).forEach((item) => item.classList.remove("is-active"));
-  if (active) button.classList.add("is-active");
-}
-
-function shuffle() {
-  const moves = ["U", "D", "L", "R", "F", "B", "U'", "R'", "F'", "L'"];
-  const sequence = Array.from({ length: 16 }, () => moves[Math.floor(Math.random() * moves.length)]);
-  commandInput.value = sequence.join(" ");
-  runMoves(sequence);
-}
-
-function undo() {
-  const last = history.pop();
-  if (!last) {
-    showToast("Nothing to undo yet");
-    return;
-  }
-
-  const inverse = last.includes("'") ? last.replace("'", "") : `${last}'`;
-  animateMove(inverse, false);
-}
-
-function realign() {
-  rotation = { x: -24, y: -34 };
-  applyRotation();
-  scene.classList.remove("auto");
-  showToast("Realigned");
-}
-
-function toggleDemo(button) {
-  const running = Boolean(demoTimer);
-  clearInterval(demoTimer);
-  demoTimer = 0;
-  button.classList.toggle("is-active", !running);
-
-  if (running) {
-    showToast("Demo paused");
-    return;
-  }
-
-  const demo = ["R", "U", "R'", "U'", "F", "R", "F'"];
-  let index = 0;
-  demoTimer = setInterval(() => {
-    runMoves([demo[index % demo.length]]);
-    index += 1;
-  }, 620);
-  showToast("Demo running");
-}
-
 function renderInterior() {
   interiorScene.setChamber(activeCubelet()?.interiorFaces);
   interiorScene.setSolidCell(solidCell, solidFaces, activePieceIndex === 26);
@@ -1029,54 +978,6 @@ function collectBananaIfReached() {
   victoryModal.removeAttribute("hidden");
   victoryModal.querySelector("#victoryContinue").focus();
 }
-
-document.querySelectorAll("[data-style]").forEach((button) => {
-  button.addEventListener("click", () => {
-    const style = button.dataset.style;
-    document.body.classList.toggle("glass", style === "glass");
-    setActive(button, "[data-style]");
-  });
-});
-
-document.querySelectorAll("[data-filter]").forEach((button) => {
-  button.addEventListener("click", () => {
-    const active = !button.classList.contains("is-active");
-    document.querySelectorAll("[data-filter]").forEach((item) => item.classList.remove("is-active"));
-    document.body.removeAttribute("data-filter");
-
-    if (active) {
-      button.classList.add("is-active");
-      document.body.dataset.filter = button.dataset.filter;
-    }
-  });
-});
-
-document.querySelectorAll("[data-label]").forEach((button) => {
-  button.addEventListener("click", () => {
-    const label = button.dataset.label;
-    const className = `show-${label}`;
-    document.body.classList.toggle(className);
-    button.classList.toggle("is-active", document.body.classList.contains(className));
-  });
-});
-
-document.querySelectorAll("[data-action]").forEach((button) => {
-  button.addEventListener("click", () => {
-    const action = button.dataset.action;
-    if (action === "rotate") {
-      scene.classList.toggle("auto");
-      button.classList.toggle("is-active", scene.classList.contains("auto"));
-    }
-    if (action === "realign") realign();
-    if (action === "shuffle") shuffle();
-    if (action === "undo") undo();
-    if (action === "demo") toggleDemo(button);
-  });
-});
-
-document.querySelectorAll("[data-move]").forEach((button) => {
-  button.addEventListener("click", () => runMoves([button.dataset.move]));
-});
 
 document.addEventListener("keydown", (event) => {
   if (littleMode && event.key.startsWith("Arrow")) {
@@ -1260,52 +1161,5 @@ document.querySelector(".scene-shell").addEventListener("pointercancel", endPoin
 window.addEventListener("resize", renderCubelets);
 window.addEventListener("resize", applyRotation);
 
-window.cube = {
-  twist(sequence) {
-    return runMoves(sequence);
-  },
-  inspect() {
-    return {
-      cubelets: cubelets.map(({ index, position }) => ({ index, ...position })),
-      moves: history.slice()
-    };
-  },
-  gesture(side, position, dx, dy) {
-    return gestureMoveForTouch(side, position, dx, dy);
-  },
-  realign,
-  shuffle
-};
-
-window.render_game_to_text = () => JSON.stringify({
-  coordinateSystem: "Cube coordinates: +x right, +y up, +z front; face gestures use local horizontal/vertical axes.",
-  viewRotation: { ...rotation },
-  activeMove,
-  dragPreview,
-  activePiece: activePieceIndex === 26 ? "Red / White / Blue" : "White / Blue middle",
-  player: { ...player },
-  playerWorldCell: describePlayerWorldCell(),
-  solidCell: { ...solidCell },
-  goldenBanana: { cell: { ...bananaCell }, collected: bananaCollected },
-  levelComplete,
-  solidFloorHeight: floorHeightAt(player.x, player.z, player.y),
-  gravity: "Yellow (world -Y)",
-  interiorFloor: activeInteriorFloorFace(),
-  doors: DOORS.map((door) => {
-    const piece = cubelets.find((cubelet) => cubelet.index === door.pieceIndex);
-    return { piece: door.pieceIndex === 26 ? "R/W/B" : "W/B", face: door.face, position: door.position, worldSide: sideForFace(piece, door.face), cell: doorCell(door, piece) };
-  }),
-  moves: history.slice(),
-  cubelets: cubelets.map(({ index, position, stickers: cubeletStickers }) => ({
-    index,
-    position: { ...position },
-    stickers: { ...cubeletStickers }
-  }))
-});
-
-// This UI has no simulation loop; expose a no-op step hook for deterministic
-// browser tooling without interrupting in-progress CSS turn animations.
-window.advanceTime = () => window.render_game_to_text();
-
 buildCube();
-showToast("Drag the cube or run a twist");
+showToast("Drag the cube to turn it");
