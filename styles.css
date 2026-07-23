@@ -493,6 +493,148 @@ code {
 .scene-shell { width: 100vw; min-height: 100svh; perspective: 1400px; opacity: 1; transition: opacity 400ms ease 120ms; }
 .mode-toggle { position: fixed; z-index: 3; left: 50%; bottom: 28px; transform: translateX(-50%); min-width: 126px; padding: 11px 16px; color: var(--ink); background: rgba(10, 12, 16, .76); border: 1px solid rgba(255,255,255,.28); border-radius: 999px; cursor: pointer; backdrop-filter: blur(10px); }
 .mode-toggle[aria-pressed="true"] { color: #06110e; background: var(--accent); border-color: var(--accent); }
+.tutorial-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  overflow: hidden;
+  color: var(--ink);
+}
+.tutorial-focus {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border: 1px solid rgba(255, 229, 118, .68);
+  border-radius: 42%;
+  box-shadow: 0 0 0 9999px rgba(3, 5, 8, .74), 0 0 46px rgba(255, 214, 62, .28);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  transition: width 420ms cubic-bezier(.2,.78,.2,1), height 420ms cubic-bezier(.2,.78,.2,1), left 420ms cubic-bezier(.2,.78,.2,1), top 420ms cubic-bezier(.2,.78,.2,1);
+}
+.tutorial-focus--world,
+.tutorial-focus--interior {
+  width: clamp(330px, min(58vw, 72vh), 650px);
+  height: clamp(330px, min(58vw, 72vh), 650px);
+}
+.tutorial-focus--active {
+  top: 46%;
+  width: clamp(150px, 18vw, 238px);
+  height: clamp(150px, 18vw, 238px);
+  border-radius: 28%;
+  animation: tutorial-focus-pulse 1.8s ease-in-out infinite;
+}
+.tutorial-focus--control {
+  left: 50%;
+  top: auto;
+  bottom: 15px;
+  width: 168px;
+  height: 68px;
+  border-radius: 999px;
+  transform: translateX(-50%);
+}
+.tutorial-card {
+  position: absolute;
+  top: clamp(84px, 12vh, 132px);
+  right: clamp(22px, 4vw, 62px);
+  width: min(350px, calc(100vw - 44px));
+  padding: 24px 25px 22px;
+  background: rgba(9, 12, 16, .94);
+  border: 1px solid rgba(255, 255, 255, .18);
+  border-radius: 18px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .48);
+  backdrop-filter: blur(18px);
+  animation: tutorial-card-in 360ms cubic-bezier(.2,.78,.2,1) both;
+}
+.tutorial-progress {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 22px;
+}
+.tutorial-progress span {
+  height: 3px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, .16);
+  border-radius: 999px;
+}
+.tutorial-progress span.is-current,
+.tutorial-progress span.is-complete { background: var(--accent); }
+.tutorial-eyebrow {
+  margin: 0 0 8px;
+  color: var(--accent);
+  font-size: .7rem;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.tutorial-card h2 {
+  margin: 0;
+  max-width: 12ch;
+  color: #fffdf5;
+  font-size: clamp(1.55rem, 3vw, 2.2rem);
+  line-height: 1.02;
+  letter-spacing: -.035em;
+}
+.tutorial-copy {
+  margin: 15px 0 0;
+  color: #b9c2c7;
+  font-size: .93rem;
+  line-height: 1.55;
+}
+.tutorial-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 42px;
+  margin-top: 22px;
+  gap: 16px;
+}
+.tutorial-actions button {
+  min-height: 42px;
+  cursor: pointer;
+}
+.tutorial-skip {
+  padding: 0;
+  color: #9da7ad;
+  background: transparent;
+  border: 0;
+}
+.tutorial-next {
+  padding: 10px 17px;
+  color: #06110e;
+  font-weight: 800;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+}
+.tutorial-next:focus-visible,
+.tutorial-skip:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.tutorial-hint {
+  color: #ffe576;
+  font-size: .78rem;
+  font-weight: 760;
+}
+.mode-toggle.tutorial-mode-target {
+  z-index: 12;
+  color: #06110e;
+  font-weight: 800;
+  background: #ffe576;
+  border-color: #ffe576;
+  box-shadow: 0 0 0 7px rgba(255, 229, 118, .16), 0 0 34px rgba(255, 229, 118, .7);
+  animation: tutorial-button-pulse 1.25s ease-in-out infinite;
+}
+@keyframes tutorial-card-in {
+  from { opacity: 0; transform: translateY(14px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes tutorial-focus-pulse {
+  0%, 100% { box-shadow: 0 0 0 9999px rgba(3, 5, 8, .74), 0 0 36px rgba(255, 214, 62, .24); }
+  50% { box-shadow: 0 0 0 9999px rgba(3, 5, 8, .74), 0 0 62px rgba(255, 214, 62, .48); }
+}
+@keyframes tutorial-button-pulse {
+  0%, 100% { transform: translateX(-50%) scale(1); }
+  50% { transform: translateX(-50%) scale(1.045); }
+}
 .fullscreen-toggle {
   position: fixed;
   z-index: 4;
@@ -566,6 +708,44 @@ body.little-mode .scene-shell { opacity: 0; pointer-events: none; }
     transform: none;
   }
   .fullscreen-toggle { display: block; }
+  .tutorial-focus--control {
+    left: max(80px, calc(env(safe-area-inset-left) + 80px));
+    bottom: max(5px, calc(env(safe-area-inset-bottom) - 4px));
+    transform: translateX(-50%);
+  }
+  .mode-toggle.tutorial-mode-target { animation-name: tutorial-button-pulse-mobile; }
+}
+
+@keyframes tutorial-button-pulse-mobile {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.045); }
+}
+
+@media (max-width: 620px) {
+  .tutorial-card {
+    top: auto;
+    right: 16px;
+    bottom: max(92px, calc(env(safe-area-inset-bottom) + 78px));
+    width: calc(100vw - 32px);
+    padding: 20px;
+    border-radius: 16px;
+  }
+  .tutorial-card h2 { max-width: 15ch; font-size: 1.55rem; }
+  .tutorial-copy { font-size: .86rem; line-height: 1.45; }
+  .tutorial-progress { margin-bottom: 16px; }
+  .tutorial-actions { margin-top: 17px; }
+  .tutorial-focus--world,
+  .tutorial-focus--interior {
+    width: min(92vw, 72vh);
+    height: min(92vw, 72vh);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tutorial-card,
+  .tutorial-focus--active,
+  .mode-toggle.tutorial-mode-target { animation: none; }
+  .tutorial-focus { transition: none; }
 }
 
 .disclosure-panel button {

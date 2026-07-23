@@ -13,6 +13,7 @@ const { createElement: h } = React;
 const STEP = 1.92;
 const CUBE_FRAME_HALF_EXTENT = 3.05;
 const MOBILE_FRAME_FILL = .96;
+const TUTORIAL_STORAGE_KEY = "cubesque-ape:tutorial-complete:v1";
 // Palette retained from the original Cube Explorer design.
 const COLORS = { red: 0xd83a34, orange: 0xf28b24, white: 0xf7f3e7, yellow: 0xf4d13d, blue: 0x246fe5, green: 0x2fb56d, core: 0x16181f };
 
@@ -447,16 +448,69 @@ function SkinControl({ skin, onChange }) {
   return h("label", { className: "skin-control" }, "Ape suit", h("select", { value: skin, onChange: (event) => onChange(event.target.value) }, h("option", { value: "classic" }, "Classic Retro"), h("option", { value: "cyber" }, "Cyber Mecha"), h("option", { value: "astronaut" }, "Astronaut")));
 }
 
-function LegacyGameShell({ game, setGame, settingsOpen, setSettingsOpen, editorOpen, setEditorOpen, save, saveState, updateLevel, setMode, turn }) {
+const TUTORIAL_STEPS = [
+  {
+    focus: "world",
+    eyebrow: "The big picture",
+    title: "This is the World Cube.",
+    body: "The full puzzle is a 3 × 3 × 3 world made from 27 connected cube pieces.",
+  },
+  {
+    focus: "active",
+    eyebrow: "Your location",
+    title: "The gold piece is active.",
+    body: "It is the cube piece containing you—the Player Ape. Its glow follows you through the world.",
+  },
+  {
+    focus: "control",
+    eyebrow: "Look inside",
+    title: "Open the active piece.",
+    body: "Press the highlighted “Little cube” button to zoom into the room where your Ape is standing.",
+  },
+  {
+    focus: "interior",
+    eyebrow: "Inside a cube piece",
+    title: "Every room has a 4 × 4 grid.",
+    body: "Use the arrow keys—or the on-screen arrows—to move one cell at a time. Find doors, avoid obstacles, and reach the Golden Banana.",
+  },
+];
+
+function TutorialOverlay({ step, onNext, onSkip, onFinish }) {
+  if (step === null) return null;
+  const content = TUTORIAL_STEPS[step];
+  const waitsForModeButton = step === 2;
+  return h("section", { className: `tutorial-overlay tutorial-step-${step + 1}`, "aria-label": "Game tutorial", "aria-live": "polite" },
+    h("div", { className: `tutorial-focus tutorial-focus--${content.focus}`, "aria-hidden": true }),
+    h("div", { className: "tutorial-card", role: "dialog", "aria-modal": !waitsForModeButton, "aria-labelledby": "tutorial-title" },
+      h("div", { className: "tutorial-progress", "aria-label": `Tutorial step ${step + 1} of ${TUTORIAL_STEPS.length}` },
+        TUTORIAL_STEPS.map((_, index) => h("span", { key: index, className: index === step ? "is-current" : index < step ? "is-complete" : "" }))),
+      h("p", { className: "tutorial-eyebrow" }, `${String(step + 1).padStart(2, "0")} / 04 · ${content.eyebrow}`),
+      h("h2", { id: "tutorial-title" }, content.title),
+      h("p", { className: "tutorial-copy" }, content.body),
+      h("div", { className: "tutorial-actions" },
+        h("button", { className: "tutorial-skip", type: "button", onClick: onSkip }, "Skip tour"),
+        waitsForModeButton
+          ? h("span", { className: "tutorial-hint" }, "Waiting for your click…")
+          : h("button", { className: "tutorial-next", type: "button", autoFocus: true, onClick: step === TUTORIAL_STEPS.length - 1 ? onFinish : onNext }, step === TUTORIAL_STEPS.length - 1 ? "Start exploring" : "Next"))));
+}
+
+function LegacyGameShell({ game, setGame, settingsOpen, setSettingsOpen, editorOpen, setEditorOpen, save, saveState, updateLevel, setMode, turn, tutorialStep, setTutorialStep, completeTutorial, replayTutorial }) {
+  const tutorialTargetsModeButton = tutorialStep === 2;
+  const toggleMode = () => {
+    const nextMode = game.mode === "cube" ? "interior" : "cube";
+    setMode(nextMode);
+    if (tutorialTargetsModeButton && nextMode === "interior") setTutorialStep(3);
+  };
   return h("main", { className: "stage", "aria-label": "Cubesque-Ape isometric cube puzzle" },
     h("p", { className: "game-brand" }, "Cubesque-Ape"), h("div", { className: "scene-shell" }, h(CubeScene, { game, onTurn: turn })),
     h("button", { className: "settings-toggle", type: "button", "aria-label": "Open Settings", onClick: () => setSettingsOpen(true) }, "⚙"),
     h(FullscreenControl, { className: "fullscreen-toggle" }),
-    h("div", { className: "settings-modal", hidden: !settingsOpen, "aria-hidden": !settingsOpen }, h("div", { className: "settings-backdrop", onClick: () => setSettingsOpen(false) }), h("div", { className: "settings-content" }, h("div", { className: "settings-header" }, h("h2", null, "Settings"), h("button", { className: "settings-close", type: "button", onClick: () => setSettingsOpen(false) }, "×")), h("div", { className: "settings-body" }, h("div", { className: "settings-section" }, h("h3", null, "Select Ape Suit"), h("div", { className: "skin-cards-list" }, [["classic", "Classic Retro", "Organic brown fur with visible eyes, no red tie."], ["cyber", "Cyber Mecha", "Glow reactor chest plate, left mecha arm, and visor."], ["astronaut", "Astronaut Suit", "Spacesuit with oxygen tanks and gold visor flipped up."]].map(([skin, title, description]) => h("button", { type: "button", key: skin, className: `skin-card ${game.skin === skin ? "active" : ""}`, onClick: () => setGame((current) => ({ ...current, skin })) }, h("span", { className: "skin-card-header" }, title), h("span", { className: "skin-card-desc" }, description))))), h("div", { className: "settings-section settings-actions" }, h(AuthControl), h("button", { type: "button", onClick: save }, "Save level"), h("button", { type: "button", onClick: () => setEditorOpen((open) => !open) }, editorOpen ? "Close level editor" : "Level editor"), saveState && h("p", { role: "status" }, saveState))))),
+    h("div", { className: "settings-modal", hidden: !settingsOpen, "aria-hidden": !settingsOpen }, h("div", { className: "settings-backdrop", onClick: () => setSettingsOpen(false) }), h("div", { className: "settings-content" }, h("div", { className: "settings-header" }, h("h2", null, "Settings"), h("button", { className: "settings-close", type: "button", onClick: () => setSettingsOpen(false) }, "×")), h("div", { className: "settings-body" }, h("div", { className: "settings-section" }, h("h3", null, "Select Ape Suit"), h("div", { className: "skin-cards-list" }, [["classic", "Classic Retro", "Organic brown fur with visible eyes, no red tie."], ["cyber", "Cyber Mecha", "Glow reactor chest plate, left mecha arm, and visor."], ["astronaut", "Astronaut Suit", "Spacesuit with oxygen tanks and gold visor flipped up."]].map(([skin, title, description]) => h("button", { type: "button", key: skin, className: `skin-card ${game.skin === skin ? "active" : ""}`, onClick: () => setGame((current) => ({ ...current, skin })) }, h("span", { className: "skin-card-header" }, title), h("span", { className: "skin-card-desc" }, description))))), h("div", { className: "settings-section settings-actions" }, h(AuthControl), h("button", { type: "button", onClick: save }, "Save level"), h("button", { type: "button", onClick: () => setEditorOpen((open) => !open) }, editorOpen ? "Close level editor" : "Level editor"), h("button", { type: "button", onClick: replayTutorial }, "Replay tutorial"), saveState && h("p", { role: "status" }, saveState))))),
     editorOpen && h(LevelEditor, { level: game.level, onChange: updateLevel }),
     game.levelComplete && h("div", { className: "victory-modal", role: "dialog", "aria-modal": true }, h("div", { className: "victory-backdrop" }), h("div", { className: "victory-content" }, h("p", { className: "victory-kicker" }, "Golden banana collected"), h("h2", null, "Congrats, you have beat the level!"), h("button", { className: "victory-continue", type: "button", autoFocus: true, onClick: () => setGame(createGameState(game.level)) }, "Continue"))),
-    h("button", { className: "mode-toggle", type: "button", "aria-pressed": game.mode === "interior", onClick: () => setMode(game.mode === "cube" ? "interior" : "cube") }, game.mode === "cube" ? "Little cube" : "Big cube"),
-    game.mode === "interior" && h("nav", { className: "touch-move-controls", "aria-label": "Move the Ape" }, [["ArrowUp", "touch-move-up", "▲"], ["ArrowLeft", "touch-move-left", "◀"], ["ArrowRight", "touch-move-right", "▶"], ["ArrowDown", "touch-move-down", "▼"]].map(([key, className, icon]) => h("button", { key, type: "button", className: `touch-move ${className}`, onClick: () => setGame((current) => movePlayerInWorld(current, key)) }, icon)))
+    h("button", { className: `mode-toggle ${tutorialTargetsModeButton ? "tutorial-mode-target" : ""}`, type: "button", "aria-pressed": game.mode === "interior", onClick: toggleMode }, game.mode === "cube" ? "Little cube" : "Big cube"),
+    game.mode === "interior" && h("nav", { className: "touch-move-controls", "aria-label": "Move the Ape" }, [["ArrowUp", "touch-move-up", "▲"], ["ArrowLeft", "touch-move-left", "◀"], ["ArrowRight", "touch-move-right", "▶"], ["ArrowDown", "touch-move-down", "▼"]].map(([key, className, icon]) => h("button", { key, type: "button", className: `touch-move ${className}`, onClick: () => setGame((current) => movePlayerInWorld(current, key)) }, icon))),
+    h(TutorialOverlay, { step: tutorialStep, onNext: () => setTutorialStep((current) => current + 1), onSkip: completeTutorial, onFinish: completeTutorial })
   );
 }
 
@@ -465,6 +519,10 @@ function App() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [saveState, setSaveState] = useState("");
+  const [tutorialStep, setTutorialStep] = useState(() => {
+    try { return window.localStorage.getItem(TUTORIAL_STORAGE_KEY) === "complete" ? null : 0; }
+    catch { return 0; }
+  });
   useEffect(() => {
     // The isolated preview deliberately starts from the bundled level. It
     // should not require a configured remote level service just to exercise
@@ -479,7 +537,17 @@ function App() {
   const turn = (move) => setGame((current) => current.mode === "cube" && typeof move === "string" ? turnCube(current, move) : current);
   const legacyUpdateLevel = (level) => setGame((current) => ({ ...current, level }));
   const legacySave = async () => { try { const result = await savePrimaryLevel(game.level); setSaveState(result.source === "supabase" ? "Saved to Supabase." : "Saved locally."); } catch (error) { setSaveState(error.message); } };
-  return h(LegacyGameShell, { game, setGame, settingsOpen, setSettingsOpen, editorOpen, setEditorOpen, save: legacySave, saveState, updateLevel: legacyUpdateLevel, setMode, turn });
+  const completeTutorial = () => {
+    try { window.localStorage.setItem(TUTORIAL_STORAGE_KEY, "complete"); } catch {}
+    setTutorialStep(null);
+  };
+  const replayTutorial = () => {
+    setSettingsOpen(false);
+    setEditorOpen(false);
+    setGame((current) => ({ ...current, mode: "cube" }));
+    setTutorialStep(0);
+  };
+  return h(LegacyGameShell, { game, setGame, settingsOpen, setSettingsOpen, editorOpen, setEditorOpen, save: legacySave, saveState, updateLevel: legacyUpdateLevel, setMode, turn, tutorialStep, setTutorialStep, completeTutorial, replayTutorial });
   /* Earlier experimental editor UI retained as migration reference only.
   const updateLevel = (level) => setGame((current) => ({ ...current, level }));
   const save = async () => { try { const result = await savePrimaryLevel(game.level); setSaveState(result.source === "supabase" ? "Saved to Supabase." : "Saved locally — add .env credentials to share."); } catch (error) { setSaveState(error.message); } };

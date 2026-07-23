@@ -2,6 +2,8 @@ Original prompt: I'm missing the ability to move the center rings, also some of 
 
 ## Progress
 
+- React first-load tutorial (2026-07-23): added a four-step interactive onboarding walkthrough for the React entry. It spotlights the World Cube, identifies the gold Active Cube Piece, requires the real Little cube control to continue, and explains the 4 × 4 interior movement grid. Completion is remembered in localStorage, and Settings includes a Replay tutorial action. Focused in-app browser verification exercised all four steps at 1280 × 720 and 393 × 737, confirmed completion survives reload, confirmed Replay tutorial restarts at step one, and found no console warnings/errors. Playwright was not run per repository instruction.
+
 - React mobile edge-to-edge stage (2026-07-23): found that the legacy `max-width: 980px` breakpoint was overriding React's full-screen scene with a `58vh` canvas and top margin. Added React-root-scoped fixed/dynamic-viewport stage rules so the title stays overlayed and consumes no canvas space. The React entry now opts into safe-area viewport fitting and dark browser theme chrome. Supported mobile browsers show an explicit bottom-right Fullscreen / Exit fullscreen control that requests hidden navigation UI; Android/iOS system gesture areas remain controlled by the OS outside fullscreen. No Playwright check was run per repository instruction.
 
 - React mobile mode-toggle placement (2026-07-23): removed the legacy-only `html.is-mobile` requirement from the existing small-screen `.mode-toggle` rule. The React Little cube / Big cube button now anchors to the bottom-left safe area at viewport widths up to 900px, while wider desktop layouts remain centered. No Playwright check was run per repository instruction.
