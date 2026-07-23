@@ -2,6 +2,15 @@ Original prompt: I'm missing the ability to move the center rings, also some of 
 
 ## Progress
 
+- React production cutover (2026-07-23): promoted `src/main.js` to the default
+  `/` entry, moved the preserved DOM/CSS implementation and its `app.js` to
+  `/legacy`, and updated the pre-build guard, Vite multi-page inputs, and
+  migration documentation to enforce the new boundary. The production build
+  passes. Focused in-app browser checks confirmed `/` loads only
+  `/src/main.js`, `/legacy` loads only `/legacy/app.js`, both game views render,
+  and neither route reports console warnings or errors. Playwright was not run
+  per repository instruction.
+
 - React mobile Interior input-performance pass (2026-07-23): traced the slow touch INP to `CubeScene` rebuilding the full chamber, regenerating the 22,848-instance Classic Ape, constructing 27 hidden cubelets, and running the multisampled half-float bloom pipeline after every cell movement. Split player-transform updates from structural scene rebuilds, stopped creating overview cubelets in Interior mode, render the chamber directly because active-piece bloom is Cube-only, cap mobile DPR at 1.5, and dispose replaced Three.js resources. Focused in-app browser verification at 737 × 393 exercised a right/down/left/up movement loop, confirmed the Ape returned to its initial cell, confirmed Cube-mode gold bloom survives the direct-render split, and found no console warnings/errors. Playwright was not run per repository instruction.
 
 - React mobile tutorial preflight (2026-07-23): first-time mobile-sized/touch visitors now remain in a blocking preflight before tutorial step one. Portrait state asks them to rotate; landscape state requires a user-initiated fullscreen request. Standalone/fullscreen display modes satisfy the gate automatically, while browsers without the Fullscreen API are directed to reopen the game from the Home Screen. Focused in-app browser verification at 393 × 737 and 737 × 393 confirmed the rotate prompt, fullscreen CTA, successful fullscreen-to-tutorial handoff, desktop bypass, completed-mobile bypass, and no console warnings/errors. Playwright was not run per repository instruction.

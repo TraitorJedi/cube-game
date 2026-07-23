@@ -21,7 +21,9 @@ The production stack is **React + Three.js** (prefer `@react-three/fiber` and `@
 
 ## Live entry point
 
-`index.html` currently loads `app.js`; it is the production source of truth while the React/Three replacement is brought to parity. `src/main.js` is a non-production parity candidate and must not become live until every item in `docs/react-parity-checklist.md` is verified. The pre-build entry-point check enforces this boundary.
+`index.html` loads the production React/Three entry at `src/main.js`. The
+preserved DOM/CSS implementation lives at `/legacy` and is useful as behavior
+reference code. The pre-build entry-point check enforces both route boundaries.
 
 ## Core world rules
 
