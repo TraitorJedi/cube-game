@@ -319,7 +319,15 @@ function CubeScene({ game, onTurn }) {
       // The legacy chamber rendered into an 88vmin square nested in the full
       // stage. Its equivalent framing in this full-viewport canvas needs a
       // little more camera distance to retain the same calm margin.
-      const distance = current.mode === "interior" ? 14.6 : 33;
+      const { clientWidth = 1, clientHeight = 1 } = host.current ?? {};
+      // Perspective projection normally makes the cube scale only with canvas
+      // height. That matched the portrait reference, but made a short landscape
+      // viewport render the cube far too small. Keep the same portrait framing
+      // while switching to the limiting axis: width in portrait, height in
+      // landscape. This behaves like object-fit: contain, leaving enough margin
+      // for the full cube silhouette without wasting the landscape width.
+      const overviewDistance = 17.5 * Math.max(1, clientHeight / Math.max(1, clientWidth));
+      const distance = current.mode === "interior" ? 14.6 : overviewDistance;
       const target = current.mode === "interior" && activePiece
         ? new THREE.Vector3(activePiece.position.x * STEP, activePiece.position.y * STEP - .4, activePiece.position.z * STEP)
         : new THREE.Vector3();
