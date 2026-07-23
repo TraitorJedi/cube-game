@@ -412,11 +412,43 @@ function AuthControl() {
   return h("form", { className: "auth-control", onSubmit: submit }, h("input", { type: "email", value: email, required: true, placeholder: "designer@email.com", "aria-label": "Email address", onChange: (event) => setEmail(event.target.value) }), h("button", { type: "submit" }, "Email sign-in"), status && h("span", { role: "status" }, status));
 }
 
+function fullscreenElement() {
+  return document.fullscreenElement ?? document.webkitFullscreenElement;
+}
+
+function fullscreenDisplayMode() {
+  return Boolean(
+    fullscreenElement()
+    || window.matchMedia("(display-mode: fullscreen)").matches
+    || window.matchMedia("(display-mode: standalone)").matches
+    || window.navigator.standalone === true
+  );
+}
+
+function mobileTutorialViewport() {
+  return window.matchMedia("(max-width: 900px), (pointer: coarse)").matches;
+}
+
+function landscapeViewport() {
+  return window.innerWidth > window.innerHeight;
+}
+
+async function requestGameFullscreen() {
+  const root = document.documentElement;
+  const request = root.requestFullscreen?.bind(root) ?? root.webkitRequestFullscreen?.bind(root);
+  if (!request) return false;
+  try {
+    await request({ navigationUI: "hide" });
+  } catch {
+    await request();
+  }
+  return true;
+}
+
 function FullscreenControl({ className = "" }) {
   const root = document.documentElement;
   const request = root.requestFullscreen?.bind(root) ?? root.webkitRequestFullscreen?.bind(root);
   const exit = document.exitFullscreen?.bind(document) ?? document.webkitExitFullscreen?.bind(document);
-  const fullscreenElement = () => document.fullscreenElement ?? document.webkitFullscreenElement;
   const supported = Boolean(request && exit);
   const [active, setActive] = useState(Boolean(fullscreenElement()));
   useEffect(() => {
@@ -442,6 +474,63 @@ function FullscreenControl({ className = "" }) {
     }
   };
   return h("button", { className, type: "button", onClick: toggle, "aria-pressed": active }, active ? "Exit fullscreen" : "Fullscreen");
+}
+
+function MobileTutorialGate({ active, onReady }) {
+  const [state, setState] = useState(() => ({
+    landscape: landscapeViewport(),
+    fullscreen: fullscreenDisplayMode(),
+  }));
+  const [error, setError] = useState("");
+  const fullscreenSupported = Boolean(document.documentElement.requestFullscreen ?? document.documentElement.webkitRequestFullscreen);
+
+  useEffect(() => {
+    if (!active) return undefined;
+    const update = () => setState({ landscape: landscapeViewport(), fullscreen: fullscreenDisplayMode() });
+    window.addEventListener("resize", update);
+    window.addEventListener("orientationchange", update);
+    document.addEventListener("fullscreenchange", update);
+    document.addEventListener("webkitfullscreenchange", update);
+    update();
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("orientationchange", update);
+      document.removeEventListener("fullscreenchange", update);
+      document.removeEventListener("webkitfullscreenchange", update);
+    };
+  }, [active]);
+
+  useEffect(() => {
+    if (active && state.landscape && state.fullscreen) onReady();
+  }, [active, state.landscape, state.fullscreen, onReady]);
+
+  if (!active) return null;
+  const needsRotation = !state.landscape;
+  const enterFullscreen = async () => {
+    setError("");
+    try {
+      const requested = await requestGameFullscreen();
+      if (!requested) setError("Fullscreen is not available in this browser.");
+      setState({ landscape: landscapeViewport(), fullscreen: fullscreenDisplayMode() });
+    } catch {
+      setError("Fullscreen was not enabled. Tap the button to try again.");
+    }
+  };
+
+  return h("section", { className: "tutorial-preflight", role: "dialog", "aria-modal": true, "aria-labelledby": "tutorial-preflight-title" },
+    h("div", { className: `tutorial-preflight-device ${needsRotation ? "is-portrait" : "is-landscape"}`, "aria-hidden": true },
+      h("span", { className: "tutorial-preflight-screen" }),
+      h("span", { className: "tutorial-preflight-home" })),
+    h("p", { className: "tutorial-preflight-kicker" }, "Before we begin"),
+    h("h1", { id: "tutorial-preflight-title" }, needsRotation ? "Turn your device sideways." : "Enter fullscreen to play."),
+    h("p", { className: "tutorial-preflight-copy" }, needsRotation
+      ? "Cubesque-Ape uses landscape mode so the World Cube and tutorial stay clear and playable."
+      : fullscreenSupported
+        ? "Fullscreen keeps the cube large, the controls reachable, and accidental browser gestures out of the puzzle."
+        : "This browser cannot enter fullscreen. Add the game to your Home Screen, then reopen it in landscape mode."),
+    !needsRotation && fullscreenSupported && h("button", { className: "tutorial-preflight-action", type: "button", onClick: enterFullscreen, autoFocus: true }, "Enter fullscreen"),
+    needsRotation && h("p", { className: "tutorial-preflight-status", role: "status" }, "Waiting for landscape mode…"),
+    error && h("p", { className: "tutorial-preflight-error", role: "alert" }, error));
 }
 
 function SkinControl({ skin, onChange }) {
@@ -476,7 +565,7 @@ const TUTORIAL_STEPS = [
 ];
 
 function TutorialOverlay({ step, onNext, onSkip, onFinish }) {
-  if (step === null) return null;
+  if (step === null || step < 0) return null;
   const content = TUTORIAL_STEPS[step];
   const waitsForModeButton = step === 2;
   return h("section", { className: `tutorial-overlay tutorial-step-${step + 1}`, "aria-label": "Game tutorial", "aria-live": "polite" },
@@ -510,6 +599,7 @@ function LegacyGameShell({ game, setGame, settingsOpen, setSettingsOpen, editorO
     game.levelComplete && h("div", { className: "victory-modal", role: "dialog", "aria-modal": true }, h("div", { className: "victory-backdrop" }), h("div", { className: "victory-content" }, h("p", { className: "victory-kicker" }, "Golden banana collected"), h("h2", null, "Congrats, you have beat the level!"), h("button", { className: "victory-continue", type: "button", autoFocus: true, onClick: () => setGame(createGameState(game.level)) }, "Continue"))),
     h("button", { className: `mode-toggle ${tutorialTargetsModeButton ? "tutorial-mode-target" : ""}`, type: "button", "aria-pressed": game.mode === "interior", onClick: toggleMode }, game.mode === "cube" ? "Little cube" : "Big cube"),
     game.mode === "interior" && h("nav", { className: "touch-move-controls", "aria-label": "Move the Ape" }, [["ArrowUp", "touch-move-up", "▲"], ["ArrowLeft", "touch-move-left", "◀"], ["ArrowRight", "touch-move-right", "▶"], ["ArrowDown", "touch-move-down", "▼"]].map(([key, className, icon]) => h("button", { key, type: "button", className: `touch-move ${className}`, onClick: () => setGame((current) => movePlayerInWorld(current, key)) }, icon))),
+    h(MobileTutorialGate, { active: tutorialStep === -1, onReady: () => setTutorialStep(0) }),
     h(TutorialOverlay, { step: tutorialStep, onNext: () => setTutorialStep((current) => current + 1), onSkip: completeTutorial, onFinish: completeTutorial })
   );
 }
@@ -520,8 +610,8 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [saveState, setSaveState] = useState("");
   const [tutorialStep, setTutorialStep] = useState(() => {
-    try { return window.localStorage.getItem(TUTORIAL_STORAGE_KEY) === "complete" ? null : 0; }
-    catch { return 0; }
+    try { return window.localStorage.getItem(TUTORIAL_STORAGE_KEY) === "complete" ? null : mobileTutorialViewport() ? -1 : 0; }
+    catch { return mobileTutorialViewport() ? -1 : 0; }
   });
   useEffect(() => {
     // The isolated preview deliberately starts from the bundled level. It
@@ -545,7 +635,7 @@ function App() {
     setSettingsOpen(false);
     setEditorOpen(false);
     setGame((current) => ({ ...current, mode: "cube" }));
-    setTutorialStep(0);
+    setTutorialStep(mobileTutorialViewport() && !fullscreenDisplayMode() ? -1 : 0);
   };
   return h(LegacyGameShell, { game, setGame, settingsOpen, setSettingsOpen, editorOpen, setEditorOpen, save: legacySave, saveState, updateLevel: legacyUpdateLevel, setMode, turn, tutorialStep, setTutorialStep, completeTutorial, replayTutorial });
   /* Earlier experimental editor UI retained as migration reference only.
