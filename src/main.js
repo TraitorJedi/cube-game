@@ -188,6 +188,23 @@ function createVoxelBanana() {
   const group = voxelGroup(voxels); group.rotation.z = -.18; return group;
 }
 
+function positionInteriorPlayer(pawn, piece, player) {
+  const local = (value) => -1.5 + value;
+  pawn.position.set(
+    piece.position.x * STEP + local(player.x),
+    piece.position.y * STEP - 2 + player.y,
+    piece.position.z * STEP + local(player.z),
+  );
+}
+
+function disposeObjectTree(object) {
+  object.traverse((child) => {
+    child.geometry?.dispose();
+    const materials = Array.isArray(child.material) ? child.material : child.material ? [child.material] : [];
+    materials.forEach((material) => material.dispose());
+  });
+}
+
 function addInterior(scene, piece, player, activePieceId, level, solidCell) {
   const origin = new THREE.Vector3(piece.position.x * STEP, piece.position.y * STEP, piece.position.z * STEP);
   const cell = 1;
@@ -246,7 +263,7 @@ function addInterior(scene, piece, player, activePieceId, level, solidCell) {
   }
   const local = (value) => -1.5 + value;
   const pawn = createVoxelApe(level.skin ?? "classic");
-  pawn.position.copy(origin).add(new THREE.Vector3(local(player.x), -2 + player.y, local(player.z))); scene.add(pawn);
+  positionInteriorPlayer(pawn, piece, player); scene.add(pawn);
   items.filter((item) => item.kind !== "door" && item.kind !== "spawn").forEach((item) => {
     if (item.kind === "golden_banana" && level.collectedItemIds?.includes(item.id)) return;
     const isBanana = item.kind === "golden_banana";
@@ -254,6 +271,7 @@ function addInterior(scene, piece, player, activePieceId, level, solidCell) {
     const mesh = isBanana ? createVoxelBanana() : new THREE.Mesh(new THREE.BoxGeometry(cell, cell, cell), MATERIAL_FACE.map((face) => new THREE.MeshStandardMaterial({ color: COLORS[interiorFaceColor(piece, OPPOSITE_SIDE[face])] ?? COLORS.core, roughness: .8, metalness: .02 })));
     mesh.position.copy(origin).add(new THREE.Vector3(local(displayCell.x), isBanana ? -1.78 + displayCell.y : -1.5 + displayCell.y, local(displayCell.z))); scene.add(mesh);
   });
+  return pawn;
 }
 
 function CubeScene({ game, onTurn }) {
@@ -261,6 +279,7 @@ function CubeScene({ game, onTurn }) {
   const cameraRef = useRef();
   const sceneRef = useRef();
   const rendererRef = useRef();
+  const pawnRef = useRef();
   const gameRef = useRef(game);
   gameRef.current = game;
   const previousMode = useRef(game.mode);
@@ -272,7 +291,10 @@ function CubeScene({ game, onTurn }) {
   useEffect(() => {
     const scene = new THREE.Scene(); scene.background = createLegacyBackground(); sceneRef.current = scene;
     const camera = new THREE.PerspectiveCamera(38, 1, .1, 100); cameraRef.current = camera;
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setClearAlpha(0); renderer.shadowMap.enabled = true; host.current.appendChild(renderer.domElement);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    const mobileRender = window.matchMedia("(max-width: 900px), (pointer: coarse)").matches;
+    renderer.setPixelRatio(Math.min(devicePixelRatio, mobileRender ? 1.5 : 2));
+    renderer.setClearAlpha(0); renderer.shadowMap.enabled = true; host.current.appendChild(renderer.domElement);
     scene.add(new THREE.HemisphereLight(0xf4f1df, 0x243428, 1.35)); const light = new THREE.DirectionalLight(0xfff9e8, 2.3); light.position.set(6, 10, 8); scene.add(light); const fill = new THREE.DirectionalLight(0x4c75ae, .7); fill.position.set(-6, -3, -4); scene.add(fill);
     // EffectComposer renders through off-screen targets, so the renderer's
     // default-framebuffer antialiasing does not cover sticker silhouettes or
@@ -367,11 +389,16 @@ function CubeScene({ game, onTurn }) {
       ));
       const targetFov = current.mode === "interior" ? 35 : 38;
       if (camera.fov !== targetFov) { camera.fov = targetFov; camera.updateProjectionMatrix(); }
-      camera.lookAt(target); composer.render();
+      camera.lookAt(target);
+      // The active-piece bloom exists only in Cube mode. Rendering the
+      // chamber directly avoids a multisampled half-float target plus the
+      // bloom passes after every one-cell player movement.
+      if (current.mode === "interior") renderer.render(scene, camera);
+      else composer.render();
     };
     const observer = new ResizeObserver(() => { resize(); render(); }); observer.observe(host.current); host.current.addEventListener("pointerdown", pointerDown); window.addEventListener("pointermove", pointerMove); window.addEventListener("pointerup", pointerUp); window.addEventListener("pointercancel", pointerUp); resize();
     rendererRef.current = { renderer, render };
-    return () => { observer.disconnect(); host.current?.removeEventListener("pointerdown", pointerDown); window.removeEventListener("pointermove", pointerMove); window.removeEventListener("pointerup", pointerUp); window.removeEventListener("pointercancel", pointerUp); composer.dispose(); renderer.dispose(); renderer.domElement.remove(); };
+    return () => { observer.disconnect(); host.current?.removeEventListener("pointerdown", pointerDown); window.removeEventListener("pointermove", pointerMove); window.removeEventListener("pointerup", pointerUp); window.removeEventListener("pointercancel", pointerUp); scene.background?.dispose?.(); scene.children.forEach(disposeObjectTree); composer.dispose(); renderer.dispose(); renderer.domElement.remove(); };
   }, []);
 
   useEffect(() => {
@@ -384,12 +411,29 @@ function CubeScene({ game, onTurn }) {
       pitch.current = Math.asin(7 / Math.sqrt(162));
     }
     previousMode.current = game.mode;
-    for (const item of [...scene.children]) if (item.userData.worldObject) scene.remove(item);
+    pawnRef.current = null;
+    for (const item of [...scene.children]) if (item.userData.worldObject) {
+      scene.remove(item);
+      disposeObjectTree(item);
+    }
     const activePiece = getActivePiece(game.cube, game.activePieceId);
-    game.cube.forEach((piece) => { const cubelet = createCubelet(piece, game.material, piece.id === game.activePieceId); cubelet.userData.worldObject = true; cubelet.visible = game.mode !== "interior"; scene.add(cubelet); });
-    if (game.mode === "interior" && activePiece) { const before = new Set(scene.children); addInterior(scene, activePiece, game.player, game.activePieceId, { ...game.level, skin: game.skin, collectedItemIds: game.collectedItemIds }, game.solidCell); scene.children.filter((item) => !before.has(item)).forEach((item) => { item.userData.worldObject = true; }); }
+    if (game.mode === "cube") {
+      game.cube.forEach((piece) => { const cubelet = createCubelet(piece, game.material, piece.id === game.activePieceId); cubelet.userData.worldObject = true; scene.add(cubelet); });
+    } else if (activePiece) {
+      const before = new Set(scene.children);
+      pawnRef.current = addInterior(scene, activePiece, game.player, game.activePieceId, { ...game.level, skin: game.skin, collectedItemIds: game.collectedItemIds }, game.solidCell);
+      scene.children.filter((item) => !before.has(item)).forEach((item) => { item.userData.worldObject = true; });
+    }
     rendererRef.current?.render();
-  }, [game]);
+  }, [game.mode, game.cube, game.activePieceId, game.level, game.material, game.skin, game.solidCell, game.collectedItemIds]);
+
+  useEffect(() => {
+    if (game.mode !== "interior" || !pawnRef.current) return;
+    const activePiece = getActivePiece(game.cube, game.activePieceId);
+    if (!activePiece) return;
+    positionInteriorPlayer(pawnRef.current, activePiece, game.player);
+    rendererRef.current?.render();
+  }, [game.player, game.mode, game.cube, game.activePieceId]);
   return h("div", { className: "scene-host", ref: host, "aria-label": "Interactive 3D Rubik's Cube puzzle" });
 }
 
