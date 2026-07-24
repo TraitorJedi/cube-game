@@ -1,6 +1,8 @@
 # Cubesque-Ape
 
-The live game is the proven DOM/CSS interaction implementation in `app.js`. The React/Three implementation in `src/main.js` is retained as a non-production replacement candidate; its required parity work is tracked in [`docs/react-parity-checklist.md`](docs/react-parity-checklist.md).
+The live game at `/` is the React/Three implementation in `src/main.js`. The
+preserved DOM/CSS implementation remains available at `/legacy` from
+`legacy/app.js`.
 An isometric cube-puzzle game whose player is a voxel ape. The ape is built
 from cuboids and fits entirely inside one 1 × 1 × 1 cell of the active 4 × 4 × 4
 interior grid.
@@ -9,5 +11,6 @@ It uses [iamthecu.be](https://iamthecu.be/) as a reference starting point for th
 
 ## Run locally
 
-Open `index.html` in a browser, or serve the folder with any static file server.
+Run `npm run dev`, then open `/` for the current React game or `/legacy` for the
+preserved implementation.
 

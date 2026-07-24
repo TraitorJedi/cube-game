@@ -2,6 +2,29 @@ Original prompt: I'm missing the ability to move the center rings, also some of 
 
 ## Progress
 
+- Pre-PR code review (2026-07-23): reviewed the complete four-commit branch
+  against current `origin/main`. Removed the stale `/react.html` preview guard
+  so every production React entry consistently loads the configured primary
+  level, and refreshed comments that still described React as a preview. The
+  production build passes; focused in-app browser checks confirmed `/` and
+  `/legacy` render from their intended scripts with no console warnings or
+  errors. Playwright was not run per repository instruction.
+
+- React production cutover (2026-07-23): promoted `src/main.js` to the default
+  `/` entry, moved the preserved DOM/CSS implementation and its `app.js` to
+  `/legacy`, and updated the pre-build guard, Vite multi-page inputs, and
+  migration documentation to enforce the new boundary. The production build
+  passes. Focused in-app browser checks confirmed `/` loads only
+  `/src/main.js`, `/legacy` loads only `/legacy/app.js`, both game views render,
+  and neither route reports console warnings or errors. Playwright was not run
+  per repository instruction.
+
+- React mobile Interior input-performance pass (2026-07-23): traced the slow touch INP to `CubeScene` rebuilding the full chamber, regenerating the 22,848-instance Classic Ape, constructing 27 hidden cubelets, and running the multisampled half-float bloom pipeline after every cell movement. Split player-transform updates from structural scene rebuilds, stopped creating overview cubelets in Interior mode, render the chamber directly because active-piece bloom is Cube-only, cap mobile DPR at 1.5, and dispose replaced Three.js resources. Focused in-app browser verification at 737 × 393 exercised a right/down/left/up movement loop, confirmed the Ape returned to its initial cell, confirmed Cube-mode gold bloom survives the direct-render split, and found no console warnings/errors. Playwright was not run per repository instruction.
+
+- React mobile tutorial preflight (2026-07-23): first-time mobile-sized/touch visitors now remain in a blocking preflight before tutorial step one. Portrait state asks them to rotate; landscape state requires a user-initiated fullscreen request. Standalone/fullscreen display modes satisfy the gate automatically, while browsers without the Fullscreen API are directed to reopen the game from the Home Screen. Focused in-app browser verification at 393 × 737 and 737 × 393 confirmed the rotate prompt, fullscreen CTA, successful fullscreen-to-tutorial handoff, desktop bypass, completed-mobile bypass, and no console warnings/errors. Playwright was not run per repository instruction.
+
+- React first-load tutorial (2026-07-23): added a four-step interactive onboarding walkthrough for the React entry. It spotlights the World Cube, identifies the gold Active Cube Piece, requires the real Little cube control to continue, and explains the 4 × 4 interior movement grid. Completion is remembered in localStorage, and Settings includes a Replay tutorial action. Focused in-app browser verification exercised all four steps at 1280 × 720 and 393 × 737, confirmed completion survives reload, confirmed Replay tutorial restarts at step one, and found no console warnings/errors. Playwright was not run per repository instruction.
+
 - React mobile edge-to-edge stage (2026-07-23): found that the legacy `max-width: 980px` breakpoint was overriding React's full-screen scene with a `58vh` canvas and top margin. Added React-root-scoped fixed/dynamic-viewport stage rules so the title stays overlayed and consumes no canvas space. The React entry now opts into safe-area viewport fitting and dark browser theme chrome. Supported mobile browsers show an explicit bottom-right Fullscreen / Exit fullscreen control that requests hidden navigation UI; Android/iOS system gesture areas remain controlled by the OS outside fullscreen. No Playwright check was run per repository instruction.
 
 - React mobile mode-toggle placement (2026-07-23): removed the legacy-only `html.is-mobile` requirement from the existing small-screen `.mode-toggle` rule. The React Little cube / Big cube button now anchors to the bottom-left safe area at viewport widths up to 900px, while wider desktop layouts remain centered. No Playwright check was run per repository instruction.

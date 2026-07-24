@@ -4,7 +4,7 @@ import {
   generateClassicApe,
   generateCyberApe,
   generateAstronautApe
-} from "./voxel-art/generator.js";
+} from "../voxel-art/generator.js";
 
 // Initialize Vercel Analytics
 inject();

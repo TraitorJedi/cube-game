@@ -10,7 +10,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         app: resolve(root, "index.html"),
-        react: resolve(root, "react.html"),
+        legacy: resolve(root, "legacy.html"),
       },
       output: {
         manualChunks(id) {

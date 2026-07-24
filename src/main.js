@@ -13,6 +13,7 @@ const { createElement: h } = React;
 const STEP = 1.92;
 const CUBE_FRAME_HALF_EXTENT = 3.05;
 const MOBILE_FRAME_FILL = .96;
+const TUTORIAL_STORAGE_KEY = "cubesque-ape:tutorial-complete:v1";
 // Palette retained from the original Cube Explorer design.
 const COLORS = { red: 0xd83a34, orange: 0xf28b24, white: 0xf7f3e7, yellow: 0xf4d13d, blue: 0x246fe5, green: 0x2fb56d, core: 0x16181f };
 
@@ -187,6 +188,23 @@ function createVoxelBanana() {
   const group = voxelGroup(voxels); group.rotation.z = -.18; return group;
 }
 
+function positionInteriorPlayer(pawn, piece, player) {
+  const local = (value) => -1.5 + value;
+  pawn.position.set(
+    piece.position.x * STEP + local(player.x),
+    piece.position.y * STEP - 2 + player.y,
+    piece.position.z * STEP + local(player.z),
+  );
+}
+
+function disposeObjectTree(object) {
+  object.traverse((child) => {
+    child.geometry?.dispose();
+    const materials = Array.isArray(child.material) ? child.material : child.material ? [child.material] : [];
+    materials.forEach((material) => material.dispose());
+  });
+}
+
 function addInterior(scene, piece, player, activePieceId, level, solidCell) {
   const origin = new THREE.Vector3(piece.position.x * STEP, piece.position.y * STEP, piece.position.z * STEP);
   const cell = 1;
@@ -245,7 +263,7 @@ function addInterior(scene, piece, player, activePieceId, level, solidCell) {
   }
   const local = (value) => -1.5 + value;
   const pawn = createVoxelApe(level.skin ?? "classic");
-  pawn.position.copy(origin).add(new THREE.Vector3(local(player.x), -2 + player.y, local(player.z))); scene.add(pawn);
+  positionInteriorPlayer(pawn, piece, player); scene.add(pawn);
   items.filter((item) => item.kind !== "door" && item.kind !== "spawn").forEach((item) => {
     if (item.kind === "golden_banana" && level.collectedItemIds?.includes(item.id)) return;
     const isBanana = item.kind === "golden_banana";
@@ -253,6 +271,7 @@ function addInterior(scene, piece, player, activePieceId, level, solidCell) {
     const mesh = isBanana ? createVoxelBanana() : new THREE.Mesh(new THREE.BoxGeometry(cell, cell, cell), MATERIAL_FACE.map((face) => new THREE.MeshStandardMaterial({ color: COLORS[interiorFaceColor(piece, OPPOSITE_SIDE[face])] ?? COLORS.core, roughness: .8, metalness: .02 })));
     mesh.position.copy(origin).add(new THREE.Vector3(local(displayCell.x), isBanana ? -1.78 + displayCell.y : -1.5 + displayCell.y, local(displayCell.z))); scene.add(mesh);
   });
+  return pawn;
 }
 
 function CubeScene({ game, onTurn }) {
@@ -260,6 +279,7 @@ function CubeScene({ game, onTurn }) {
   const cameraRef = useRef();
   const sceneRef = useRef();
   const rendererRef = useRef();
+  const pawnRef = useRef();
   const gameRef = useRef(game);
   gameRef.current = game;
   const previousMode = useRef(game.mode);
@@ -271,7 +291,10 @@ function CubeScene({ game, onTurn }) {
   useEffect(() => {
     const scene = new THREE.Scene(); scene.background = createLegacyBackground(); sceneRef.current = scene;
     const camera = new THREE.PerspectiveCamera(38, 1, .1, 100); cameraRef.current = camera;
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setClearAlpha(0); renderer.shadowMap.enabled = true; host.current.appendChild(renderer.domElement);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    const mobileRender = window.matchMedia("(max-width: 900px), (pointer: coarse)").matches;
+    renderer.setPixelRatio(Math.min(devicePixelRatio, mobileRender ? 1.5 : 2));
+    renderer.setClearAlpha(0); renderer.shadowMap.enabled = true; host.current.appendChild(renderer.domElement);
     scene.add(new THREE.HemisphereLight(0xf4f1df, 0x243428, 1.35)); const light = new THREE.DirectionalLight(0xfff9e8, 2.3); light.position.set(6, 10, 8); scene.add(light); const fill = new THREE.DirectionalLight(0x4c75ae, .7); fill.position.set(-6, -3, -4); scene.add(fill);
     // EffectComposer renders through off-screen targets, so the renderer's
     // default-framebuffer antialiasing does not cover sticker silhouettes or
@@ -366,11 +389,16 @@ function CubeScene({ game, onTurn }) {
       ));
       const targetFov = current.mode === "interior" ? 35 : 38;
       if (camera.fov !== targetFov) { camera.fov = targetFov; camera.updateProjectionMatrix(); }
-      camera.lookAt(target); composer.render();
+      camera.lookAt(target);
+      // The active-piece bloom exists only in Cube mode. Rendering the
+      // chamber directly avoids a multisampled half-float target plus the
+      // bloom passes after every one-cell player movement.
+      if (current.mode === "interior") renderer.render(scene, camera);
+      else composer.render();
     };
     const observer = new ResizeObserver(() => { resize(); render(); }); observer.observe(host.current); host.current.addEventListener("pointerdown", pointerDown); window.addEventListener("pointermove", pointerMove); window.addEventListener("pointerup", pointerUp); window.addEventListener("pointercancel", pointerUp); resize();
     rendererRef.current = { renderer, render };
-    return () => { observer.disconnect(); host.current?.removeEventListener("pointerdown", pointerDown); window.removeEventListener("pointermove", pointerMove); window.removeEventListener("pointerup", pointerUp); window.removeEventListener("pointercancel", pointerUp); composer.dispose(); renderer.dispose(); renderer.domElement.remove(); };
+    return () => { observer.disconnect(); host.current?.removeEventListener("pointerdown", pointerDown); window.removeEventListener("pointermove", pointerMove); window.removeEventListener("pointerup", pointerUp); window.removeEventListener("pointercancel", pointerUp); scene.background?.dispose?.(); scene.children.forEach(disposeObjectTree); composer.dispose(); renderer.dispose(); renderer.domElement.remove(); };
   }, []);
 
   useEffect(() => {
@@ -383,12 +411,29 @@ function CubeScene({ game, onTurn }) {
       pitch.current = Math.asin(7 / Math.sqrt(162));
     }
     previousMode.current = game.mode;
-    for (const item of [...scene.children]) if (item.userData.worldObject) scene.remove(item);
+    pawnRef.current = null;
+    for (const item of [...scene.children]) if (item.userData.worldObject) {
+      scene.remove(item);
+      disposeObjectTree(item);
+    }
     const activePiece = getActivePiece(game.cube, game.activePieceId);
-    game.cube.forEach((piece) => { const cubelet = createCubelet(piece, game.material, piece.id === game.activePieceId); cubelet.userData.worldObject = true; cubelet.visible = game.mode !== "interior"; scene.add(cubelet); });
-    if (game.mode === "interior" && activePiece) { const before = new Set(scene.children); addInterior(scene, activePiece, game.player, game.activePieceId, { ...game.level, skin: game.skin, collectedItemIds: game.collectedItemIds }, game.solidCell); scene.children.filter((item) => !before.has(item)).forEach((item) => { item.userData.worldObject = true; }); }
+    if (game.mode === "cube") {
+      game.cube.forEach((piece) => { const cubelet = createCubelet(piece, game.material, piece.id === game.activePieceId); cubelet.userData.worldObject = true; scene.add(cubelet); });
+    } else if (activePiece) {
+      const before = new Set(scene.children);
+      pawnRef.current = addInterior(scene, activePiece, game.player, game.activePieceId, { ...game.level, skin: game.skin, collectedItemIds: game.collectedItemIds }, game.solidCell);
+      scene.children.filter((item) => !before.has(item)).forEach((item) => { item.userData.worldObject = true; });
+    }
     rendererRef.current?.render();
-  }, [game]);
+  }, [game.mode, game.cube, game.activePieceId, game.level, game.material, game.skin, game.solidCell, game.collectedItemIds]);
+
+  useEffect(() => {
+    if (game.mode !== "interior" || !pawnRef.current) return;
+    const activePiece = getActivePiece(game.cube, game.activePieceId);
+    if (!activePiece) return;
+    positionInteriorPlayer(pawnRef.current, activePiece, game.player);
+    rendererRef.current?.render();
+  }, [game.player, game.mode, game.cube, game.activePieceId]);
   return h("div", { className: "scene-host", ref: host, "aria-label": "Interactive 3D Rubik's Cube puzzle" });
 }
 
@@ -411,11 +456,43 @@ function AuthControl() {
   return h("form", { className: "auth-control", onSubmit: submit }, h("input", { type: "email", value: email, required: true, placeholder: "designer@email.com", "aria-label": "Email address", onChange: (event) => setEmail(event.target.value) }), h("button", { type: "submit" }, "Email sign-in"), status && h("span", { role: "status" }, status));
 }
 
+function fullscreenElement() {
+  return document.fullscreenElement ?? document.webkitFullscreenElement;
+}
+
+function fullscreenDisplayMode() {
+  return Boolean(
+    fullscreenElement()
+    || window.matchMedia("(display-mode: fullscreen)").matches
+    || window.matchMedia("(display-mode: standalone)").matches
+    || window.navigator.standalone === true
+  );
+}
+
+function mobileTutorialViewport() {
+  return window.matchMedia("(max-width: 900px), (pointer: coarse)").matches;
+}
+
+function landscapeViewport() {
+  return window.innerWidth > window.innerHeight;
+}
+
+async function requestGameFullscreen() {
+  const root = document.documentElement;
+  const request = root.requestFullscreen?.bind(root) ?? root.webkitRequestFullscreen?.bind(root);
+  if (!request) return false;
+  try {
+    await request({ navigationUI: "hide" });
+  } catch {
+    await request();
+  }
+  return true;
+}
+
 function FullscreenControl({ className = "" }) {
   const root = document.documentElement;
   const request = root.requestFullscreen?.bind(root) ?? root.webkitRequestFullscreen?.bind(root);
   const exit = document.exitFullscreen?.bind(document) ?? document.webkitExitFullscreen?.bind(document);
-  const fullscreenElement = () => document.fullscreenElement ?? document.webkitFullscreenElement;
   const supported = Boolean(request && exit);
   const [active, setActive] = useState(Boolean(fullscreenElement()));
   useEffect(() => {
@@ -443,20 +520,148 @@ function FullscreenControl({ className = "" }) {
   return h("button", { className, type: "button", onClick: toggle, "aria-pressed": active }, active ? "Exit fullscreen" : "Fullscreen");
 }
 
+function MobileTutorialGate({ active, onReady }) {
+  const [state, setState] = useState(() => ({
+    landscape: landscapeViewport(),
+    fullscreen: fullscreenDisplayMode(),
+  }));
+  const [error, setError] = useState("");
+  const fullscreenSupported = Boolean(document.documentElement.requestFullscreen ?? document.documentElement.webkitRequestFullscreen);
+
+  useEffect(() => {
+    if (!active) return undefined;
+    const update = () => setState({ landscape: landscapeViewport(), fullscreen: fullscreenDisplayMode() });
+    window.addEventListener("resize", update);
+    window.addEventListener("orientationchange", update);
+    document.addEventListener("fullscreenchange", update);
+    document.addEventListener("webkitfullscreenchange", update);
+    update();
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("orientationchange", update);
+      document.removeEventListener("fullscreenchange", update);
+      document.removeEventListener("webkitfullscreenchange", update);
+    };
+  }, [active]);
+
+  useEffect(() => {
+    if (active && state.landscape && state.fullscreen) onReady();
+  }, [active, state.landscape, state.fullscreen, onReady]);
+
+  if (!active) return null;
+  const needsRotation = !state.landscape;
+  const enterFullscreen = async () => {
+    setError("");
+    try {
+      const requested = await requestGameFullscreen();
+      if (!requested) setError("Fullscreen is not available in this browser.");
+      setState({ landscape: landscapeViewport(), fullscreen: fullscreenDisplayMode() });
+    } catch {
+      setError("Fullscreen was not enabled. Tap the button to try again.");
+    }
+  };
+
+  return h("section", { className: "tutorial-preflight", role: "dialog", "aria-modal": true, "aria-labelledby": "tutorial-preflight-title" },
+    h("div", { className: `tutorial-preflight-device ${needsRotation ? "is-portrait" : "is-landscape"}`, "aria-hidden": true },
+      h("span", { className: "tutorial-preflight-screen" }),
+      h("span", { className: "tutorial-preflight-home" })),
+    h("p", { className: "tutorial-preflight-kicker" }, "Before we begin"),
+    h("h1", { id: "tutorial-preflight-title" }, needsRotation ? "Turn your device sideways." : fullscreenSupported ? "Enter fullscreen to play." : "Play in landscape."),
+    h("p", { className: "tutorial-preflight-copy" }, needsRotation
+      ? "Cubesque-Ape uses landscape mode so the World Cube and tutorial stay clear and playable."
+      : fullscreenSupported
+        ? "Fullscreen keeps the cube large, the controls reachable, and accidental browser gestures out of the puzzle."
+        : "This browser cannot enter fullscreen. You can still play in landscape mode."),
+    !needsRotation && fullscreenSupported && h("button", { className: "tutorial-preflight-action", type: "button", onClick: enterFullscreen, autoFocus: true }, "Enter fullscreen"),
+    !needsRotation && !fullscreenSupported && h("button", { className: "tutorial-preflight-action", type: "button", onClick: onReady, autoFocus: true }, "Continue without fullscreen"),
+    needsRotation && h("p", { className: "tutorial-preflight-status", role: "status" }, "Waiting for landscape mode…"),
+    error && h("p", { className: "tutorial-preflight-error", role: "alert" }, error));
+}
+
 function SkinControl({ skin, onChange }) {
   return h("label", { className: "skin-control" }, "Ape suit", h("select", { value: skin, onChange: (event) => onChange(event.target.value) }, h("option", { value: "classic" }, "Classic Retro"), h("option", { value: "cyber" }, "Cyber Mecha"), h("option", { value: "astronaut" }, "Astronaut")));
 }
 
-function LegacyGameShell({ game, setGame, settingsOpen, setSettingsOpen, editorOpen, setEditorOpen, save, saveState, updateLevel, setMode, turn }) {
+const TUTORIAL_STEPS = [
+  {
+    focus: "world",
+    eyebrow: "The big picture",
+    title: "This is the World Cube.",
+    body: "The full puzzle is a 3 × 3 × 3 world made from 27 connected cube pieces.",
+  },
+  {
+    focus: "active",
+    eyebrow: "Your location",
+    title: "The gold piece is active.",
+    body: "It is the cube piece containing you—the Player Ape. Its glow follows you through the world.",
+  },
+  {
+    focus: "control",
+    eyebrow: "Look inside",
+    title: "Open the active piece.",
+    body: "Press the highlighted “Little cube” button to zoom into the room where your Ape is standing.",
+  },
+  {
+    focus: "interior",
+    eyebrow: "Inside a cube piece",
+    title: "Every room has a 4 × 4 grid.",
+    body: "Use the arrow keys—or the on-screen arrows—to move one cell at a time. Find doors, avoid obstacles, and reach the Golden Banana.",
+  },
+];
+
+function TutorialOverlay({ step, onNext, onSkip, onFinish }) {
+  const cardRef = useRef(null);
+  if (step === null || step < 0) return null;
+  const content = TUTORIAL_STEPS[step];
+  const waitsForModeButton = step === 2;
+  const trapFocus = (event) => {
+    if (waitsForModeButton || event.key !== "Tab") return;
+    const focusable = [...cardRef.current.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+      .filter((element) => !element.hidden && element.getAttribute("aria-hidden") !== "true");
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+  return h("section", { className: `tutorial-overlay tutorial-step-${step + 1}`, "aria-label": "Game tutorial", "aria-live": "polite" },
+    h("div", { className: `tutorial-focus tutorial-focus--${content.focus}`, "aria-hidden": true }),
+    h("div", { ref: cardRef, className: "tutorial-card", role: "dialog", "aria-modal": !waitsForModeButton, "aria-labelledby": "tutorial-title", onKeyDown: trapFocus },
+      h("div", { className: "tutorial-progress", "aria-label": `Tutorial step ${step + 1} of ${TUTORIAL_STEPS.length}` },
+        TUTORIAL_STEPS.map((_, index) => h("span", { key: index, className: index === step ? "is-current" : index < step ? "is-complete" : "" }))),
+      h("p", { className: "tutorial-eyebrow" }, `${String(step + 1).padStart(2, "0")} / 04 · ${content.eyebrow}`),
+      h("h2", { id: "tutorial-title" }, content.title),
+      h("p", { className: "tutorial-copy" }, content.body),
+      h("div", { className: "tutorial-actions" },
+        h("button", { className: "tutorial-skip", type: "button", onClick: onSkip }, "Skip tour"),
+        waitsForModeButton
+          ? h("span", { className: "tutorial-hint" }, "Waiting for your click…")
+          : h("button", { className: "tutorial-next", type: "button", autoFocus: true, onClick: step === TUTORIAL_STEPS.length - 1 ? onFinish : onNext }, step === TUTORIAL_STEPS.length - 1 ? "Start exploring" : "Next"))));
+}
+
+function LegacyGameShell({ game, setGame, settingsOpen, setSettingsOpen, editorOpen, setEditorOpen, save, saveState, updateLevel, setMode, turn, tutorialStep, setTutorialStep, completeTutorial, replayTutorial }) {
+  const tutorialTargetsModeButton = tutorialStep === 2;
+  const toggleMode = () => {
+    const nextMode = game.mode === "cube" ? "interior" : "cube";
+    setMode(nextMode);
+    if (tutorialTargetsModeButton && nextMode === "interior") setTutorialStep(3);
+  };
   return h("main", { className: "stage", "aria-label": "Cubesque-Ape isometric cube puzzle" },
     h("p", { className: "game-brand" }, "Cubesque-Ape"), h("div", { className: "scene-shell" }, h(CubeScene, { game, onTurn: turn })),
     h("button", { className: "settings-toggle", type: "button", "aria-label": "Open Settings", onClick: () => setSettingsOpen(true) }, "⚙"),
     h(FullscreenControl, { className: "fullscreen-toggle" }),
-    h("div", { className: "settings-modal", hidden: !settingsOpen, "aria-hidden": !settingsOpen }, h("div", { className: "settings-backdrop", onClick: () => setSettingsOpen(false) }), h("div", { className: "settings-content" }, h("div", { className: "settings-header" }, h("h2", null, "Settings"), h("button", { className: "settings-close", type: "button", onClick: () => setSettingsOpen(false) }, "×")), h("div", { className: "settings-body" }, h("div", { className: "settings-section" }, h("h3", null, "Select Ape Suit"), h("div", { className: "skin-cards-list" }, [["classic", "Classic Retro", "Organic brown fur with visible eyes, no red tie."], ["cyber", "Cyber Mecha", "Glow reactor chest plate, left mecha arm, and visor."], ["astronaut", "Astronaut Suit", "Spacesuit with oxygen tanks and gold visor flipped up."]].map(([skin, title, description]) => h("button", { type: "button", key: skin, className: `skin-card ${game.skin === skin ? "active" : ""}`, onClick: () => setGame((current) => ({ ...current, skin })) }, h("span", { className: "skin-card-header" }, title), h("span", { className: "skin-card-desc" }, description))))), h("div", { className: "settings-section settings-actions" }, h(AuthControl), h("button", { type: "button", onClick: save }, "Save level"), h("button", { type: "button", onClick: () => setEditorOpen((open) => !open) }, editorOpen ? "Close level editor" : "Level editor"), saveState && h("p", { role: "status" }, saveState))))),
+    h("div", { className: "settings-modal", hidden: !settingsOpen, "aria-hidden": !settingsOpen }, h("div", { className: "settings-backdrop", onClick: () => setSettingsOpen(false) }), h("div", { className: "settings-content" }, h("div", { className: "settings-header" }, h("h2", null, "Settings"), h("button", { className: "settings-close", type: "button", onClick: () => setSettingsOpen(false) }, "×")), h("div", { className: "settings-body" }, h("div", { className: "settings-section" }, h("h3", null, "Select Ape Suit"), h("div", { className: "skin-cards-list" }, [["classic", "Classic Retro", "Organic brown fur with visible eyes, no red tie."], ["cyber", "Cyber Mecha", "Glow reactor chest plate, left mecha arm, and visor."], ["astronaut", "Astronaut Suit", "Spacesuit with oxygen tanks and gold visor flipped up."]].map(([skin, title, description]) => h("button", { type: "button", key: skin, className: `skin-card ${game.skin === skin ? "active" : ""}`, onClick: () => setGame((current) => ({ ...current, skin })) }, h("span", { className: "skin-card-header" }, title), h("span", { className: "skin-card-desc" }, description))))), h("div", { className: "settings-section settings-actions" }, h(AuthControl), h("button", { type: "button", onClick: save }, "Save level"), h("button", { type: "button", onClick: () => setEditorOpen((open) => !open) }, editorOpen ? "Close level editor" : "Level editor"), h("button", { type: "button", onClick: replayTutorial }, "Replay tutorial"), saveState && h("p", { role: "status" }, saveState))))),
     editorOpen && h(LevelEditor, { level: game.level, onChange: updateLevel }),
     game.levelComplete && h("div", { className: "victory-modal", role: "dialog", "aria-modal": true }, h("div", { className: "victory-backdrop" }), h("div", { className: "victory-content" }, h("p", { className: "victory-kicker" }, "Golden banana collected"), h("h2", null, "Congrats, you have beat the level!"), h("button", { className: "victory-continue", type: "button", autoFocus: true, onClick: () => setGame(createGameState(game.level)) }, "Continue"))),
-    h("button", { className: "mode-toggle", type: "button", "aria-pressed": game.mode === "interior", onClick: () => setMode(game.mode === "cube" ? "interior" : "cube") }, game.mode === "cube" ? "Little cube" : "Big cube"),
-    game.mode === "interior" && h("nav", { className: "touch-move-controls", "aria-label": "Move the Ape" }, [["ArrowUp", "touch-move-up", "▲"], ["ArrowLeft", "touch-move-left", "◀"], ["ArrowRight", "touch-move-right", "▶"], ["ArrowDown", "touch-move-down", "▼"]].map(([key, className, icon]) => h("button", { key, type: "button", className: `touch-move ${className}`, onClick: () => setGame((current) => movePlayerInWorld(current, key)) }, icon)))
+    h("button", { className: `mode-toggle ${tutorialTargetsModeButton ? "tutorial-mode-target" : ""}`, type: "button", "aria-pressed": game.mode === "interior", onClick: toggleMode }, game.mode === "cube" ? "Little cube" : "Big cube"),
+    game.mode === "interior" && h("nav", { className: "touch-move-controls", "aria-label": "Move the Ape" }, [["ArrowUp", "touch-move-up", "▲"], ["ArrowLeft", "touch-move-left", "◀"], ["ArrowRight", "touch-move-right", "▶"], ["ArrowDown", "touch-move-down", "▼"]].map(([key, className, icon]) => h("button", { key, type: "button", className: `touch-move ${className}`, onClick: () => setGame((current) => movePlayerInWorld(current, key)) }, icon))),
+    h(MobileTutorialGate, { active: tutorialStep === -1, onReady: () => setTutorialStep(0) }),
+    h(TutorialOverlay, { step: tutorialStep, onNext: () => setTutorialStep((current) => current + 1), onSkip: completeTutorial, onFinish: completeTutorial })
   );
 }
 
@@ -465,11 +670,11 @@ function App() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [saveState, setSaveState] = useState("");
+  const [tutorialStep, setTutorialStep] = useState(() => {
+    try { return window.localStorage.getItem(TUTORIAL_STORAGE_KEY) === "complete" ? null : mobileTutorialViewport() ? -1 : 0; }
+    catch { return mobileTutorialViewport() ? -1 : 0; }
+  });
   useEffect(() => {
-    // The isolated preview deliberately starts from the bundled level. It
-    // should not require a configured remote level service just to exercise
-    // rendering and controls; the future live React entry retains loading.
-    if (window.location.pathname.endsWith("/react.html")) return;
     loadPrimaryLevel().then((level) => setGame(createGameState(level))).catch(() => {});
   }, []);
   useEffect(() => { const onKey = (event) => { if (game.mode !== "interior" || !event.key.startsWith("Arrow")) return; event.preventDefault(); setGame((current) => movePlayerInWorld(current, event.key)); }; window.addEventListener("keydown", onKey, { passive: false }); return () => window.removeEventListener("keydown", onKey); }, [game.mode]);
@@ -479,7 +684,17 @@ function App() {
   const turn = (move) => setGame((current) => current.mode === "cube" && typeof move === "string" ? turnCube(current, move) : current);
   const legacyUpdateLevel = (level) => setGame((current) => ({ ...current, level }));
   const legacySave = async () => { try { const result = await savePrimaryLevel(game.level); setSaveState(result.source === "supabase" ? "Saved to Supabase." : "Saved locally."); } catch (error) { setSaveState(error.message); } };
-  return h(LegacyGameShell, { game, setGame, settingsOpen, setSettingsOpen, editorOpen, setEditorOpen, save: legacySave, saveState, updateLevel: legacyUpdateLevel, setMode, turn });
+  const completeTutorial = () => {
+    try { window.localStorage.setItem(TUTORIAL_STORAGE_KEY, "complete"); } catch {}
+    setTutorialStep(null);
+  };
+  const replayTutorial = () => {
+    setSettingsOpen(false);
+    setEditorOpen(false);
+    setGame((current) => ({ ...current, mode: "cube" }));
+    setTutorialStep(mobileTutorialViewport() && !fullscreenDisplayMode() ? -1 : 0);
+  };
+  return h(LegacyGameShell, { game, setGame, settingsOpen, setSettingsOpen, editorOpen, setEditorOpen, save: legacySave, saveState, updateLevel: legacyUpdateLevel, setMode, turn, tutorialStep, setTutorialStep, completeTutorial, replayTutorial });
   /* Earlier experimental editor UI retained as migration reference only.
   const updateLevel = (level) => setGame((current) => ({ ...current, level }));
   const save = async () => { try { const result = await savePrimaryLevel(game.level); setSaveState(result.source === "supabase" ? "Saved to Supabase." : "Saved locally — add .env credentials to share."); } catch (error) { setSaveState(error.message); } };
