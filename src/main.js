@@ -566,13 +566,14 @@ function MobileTutorialGate({ active, onReady }) {
       h("span", { className: "tutorial-preflight-screen" }),
       h("span", { className: "tutorial-preflight-home" })),
     h("p", { className: "tutorial-preflight-kicker" }, "Before we begin"),
-    h("h1", { id: "tutorial-preflight-title" }, needsRotation ? "Turn your device sideways." : "Enter fullscreen to play."),
+    h("h1", { id: "tutorial-preflight-title" }, needsRotation ? "Turn your device sideways." : fullscreenSupported ? "Enter fullscreen to play." : "Play in landscape."),
     h("p", { className: "tutorial-preflight-copy" }, needsRotation
       ? "Cubesque-Ape uses landscape mode so the World Cube and tutorial stay clear and playable."
       : fullscreenSupported
         ? "Fullscreen keeps the cube large, the controls reachable, and accidental browser gestures out of the puzzle."
-        : "This browser cannot enter fullscreen. Add the game to your Home Screen, then reopen it in landscape mode."),
+        : "This browser cannot enter fullscreen. You can still play in landscape mode."),
     !needsRotation && fullscreenSupported && h("button", { className: "tutorial-preflight-action", type: "button", onClick: enterFullscreen, autoFocus: true }, "Enter fullscreen"),
+    !needsRotation && !fullscreenSupported && h("button", { className: "tutorial-preflight-action", type: "button", onClick: onReady, autoFocus: true }, "Continue without fullscreen"),
     needsRotation && h("p", { className: "tutorial-preflight-status", role: "status" }, "Waiting for landscape mode…"),
     error && h("p", { className: "tutorial-preflight-error", role: "alert" }, error));
 }
@@ -609,12 +610,28 @@ const TUTORIAL_STEPS = [
 ];
 
 function TutorialOverlay({ step, onNext, onSkip, onFinish }) {
+  const cardRef = useRef(null);
   if (step === null || step < 0) return null;
   const content = TUTORIAL_STEPS[step];
   const waitsForModeButton = step === 2;
+  const trapFocus = (event) => {
+    if (waitsForModeButton || event.key !== "Tab") return;
+    const focusable = [...cardRef.current.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+      .filter((element) => !element.hidden && element.getAttribute("aria-hidden") !== "true");
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
   return h("section", { className: `tutorial-overlay tutorial-step-${step + 1}`, "aria-label": "Game tutorial", "aria-live": "polite" },
     h("div", { className: `tutorial-focus tutorial-focus--${content.focus}`, "aria-hidden": true }),
-    h("div", { className: "tutorial-card", role: "dialog", "aria-modal": !waitsForModeButton, "aria-labelledby": "tutorial-title" },
+    h("div", { ref: cardRef, className: "tutorial-card", role: "dialog", "aria-modal": !waitsForModeButton, "aria-labelledby": "tutorial-title", onKeyDown: trapFocus },
       h("div", { className: "tutorial-progress", "aria-label": `Tutorial step ${step + 1} of ${TUTORIAL_STEPS.length}` },
         TUTORIAL_STEPS.map((_, index) => h("span", { key: index, className: index === step ? "is-current" : index < step ? "is-complete" : "" }))),
       h("p", { className: "tutorial-eyebrow" }, `${String(step + 1).padStart(2, "0")} / 04 · ${content.eyebrow}`),
