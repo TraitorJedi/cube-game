@@ -791,16 +791,14 @@ body.little-mode .scene-shell { opacity: 0; pointer-events: none; }
 .touch-move-right { grid-area: 2 / 3; }
 .touch-move-down { grid-area: 3 / 2; }
 @media screen and (max-width: 1024px) {
-  /* React renders this control only in Interior mode.  The legacy
-     `little-mode` body class is not present in the React preview, so using
-     it here left touch players with no way to move the Ape. */
+  /* React renders this control only in Interior mode and does not add the
+     legacy `little-mode` body class. */
   .touch-move-controls { display: grid; }
 }
 @media (max-width: 620px) { .game-brand { top: 16px; left: 18px; } .mode-toggle { bottom: max(20px, env(safe-area-inset-bottom)); } }
 
-/* Keep the mode switch thumb-accessible on mobile-sized screens. The React
-   entry does not add the legacy `html.is-mobile` marker, so the viewport
-   itself is the reliable shared signal for both implementations. */
+/* Keep the mode switch thumb-accessible on mobile-sized screens. React does
+   not add the legacy `html.is-mobile` marker, so use the viewport itself. */
 @media (max-width: 900px) {
   .mode-toggle {
     left: max(18px, env(safe-area-inset-left));

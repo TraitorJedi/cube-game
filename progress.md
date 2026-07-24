@@ -2,6 +2,14 @@ Original prompt: I'm missing the ability to move the center rings, also some of 
 
 ## Progress
 
+- Pre-PR code review (2026-07-23): reviewed the complete four-commit branch
+  against current `origin/main`. Removed the stale `/react.html` preview guard
+  so every production React entry consistently loads the configured primary
+  level, and refreshed comments that still described React as a preview. The
+  production build passes; focused in-app browser checks confirmed `/` and
+  `/legacy` render from their intended scripts with no console warnings or
+  errors. Playwright was not run per repository instruction.
+
 - React production cutover (2026-07-23): promoted `src/main.js` to the default
   `/` entry, moved the preserved DOM/CSS implementation and its `app.js` to
   `/legacy`, and updated the pre-build guard, Vite multi-page inputs, and

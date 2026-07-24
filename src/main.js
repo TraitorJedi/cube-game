@@ -658,10 +658,6 @@ function App() {
     catch { return mobileTutorialViewport() ? -1 : 0; }
   });
   useEffect(() => {
-    // The isolated preview deliberately starts from the bundled level. It
-    // should not require a configured remote level service just to exercise
-    // rendering and controls; the future live React entry retains loading.
-    if (window.location.pathname.endsWith("/react.html")) return;
     loadPrimaryLevel().then((level) => setGame(createGameState(level))).catch(() => {});
   }, []);
   useEffect(() => { const onKey = (event) => { if (game.mode !== "interior" || !event.key.startsWith("Arrow")) return; event.preventDefault(); setGame((current) => movePlayerInWorld(current, event.key)); }; window.addEventListener("keydown", onKey, { passive: false }); return () => window.removeEventListener("keydown", onKey); }, [game.mode]);
