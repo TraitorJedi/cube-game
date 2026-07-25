@@ -4,7 +4,12 @@ import { createPrimaryLevel, validateLevel } from "./levels.js";
 const LOCAL_KEY = "cubesque-ape:primary-world";
 const url = import.meta.env.VITE_SUPABASE_URL;
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-const supabase = url && key ? createClient(url, key) : null;
+const supabase = url && key ? createClient(url, key, {
+  auth: {
+    detectSessionInUrl: false,
+    persistSession: false,
+  },
+}) : null;
 
 export function loadLocalLevel() {
   try { return validateLevel(JSON.parse(localStorage.getItem(LOCAL_KEY))) } catch { return createPrimaryLevel(); }
@@ -14,9 +19,10 @@ export function hasSupabase() { return Boolean(supabase); }
 
 export async function getAuthClaims() {
   if (!supabase) return null;
-  const { data, error } = await supabase.auth.getClaims();
+  const { data, error } = await supabase.auth.getUser();
   if (error) throw error;
-  return data.claims ?? null;
+  if (!data.user) return null;
+  return { email: data.user.email, sub: data.user.id };
 }
 
 export function onAuthChange(callback) {
