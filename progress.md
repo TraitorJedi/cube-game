@@ -30,6 +30,9 @@ Cubesque-Ape remains a full-viewport charcoal isometric puzzle stage with bright
 - `npm run test:engine` passes the signed U-turn attachment check for the cubelet, Ape, and obstacle.
 - Windows Computer Use verification confirmed tutorial dismissal, pointer orbit, Interior mode, ArrowRight movement, Settings, and the private `/editor` sign-in boundary.
 - The Next.js dev log remained free of application errors during the verified flows.
+- After the migration was copied into the Git worktree and the Vite files were
+  retired, `npm run check`, `npm run test:engine`, and `npm run build` passed
+  again. The lint step retains seven warnings and no errors.
 
 ## Notes
 
