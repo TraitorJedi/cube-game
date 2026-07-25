@@ -7,6 +7,15 @@ const AXIS_COLORS = {
 };
 
 const COLOR_AXIS = Object.freeze({ green: "x", blue: "x", yellow: "y", white: "y", orange: "z", red: "z" });
+const FACE_STEP = Object.freeze({
+  green: { axis: "x", amount: -1 },
+  blue: { axis: "x", amount: 1 },
+  yellow: { axis: "y", amount: -1 },
+  white: { axis: "y", amount: 1 },
+  orange: { axis: "z", amount: -1 },
+  red: { axis: "z", amount: 1 },
+});
+const OPPOSITE_COLOR = Object.freeze({ green: "blue", blue: "green", yellow: "white", white: "yellow", orange: "red", red: "orange" });
 
 export const COLOR_SHORT = Object.freeze({ red: "r", orange: "o", white: "w", yellow: "y", blue: "b", green: "g" });
 export const COLOR_LONG = Object.freeze(Object.fromEntries(Object.entries(COLOR_SHORT).map(([long, short]) => [short, long])));
@@ -65,6 +74,8 @@ export function validatePlacement(placement) {
   if (!['obstacle', 'golden_banana', 'door', 'spawn'].includes(placement.kind)) throw new Error("Unknown placeable item.");
   if (placement.kind === "door") {
     if (placement.coordinate[5] !== 0) throw new Error("A door's third distance must be 0; the third color selects its face.");
+    if (typeof placement.targetModuleId !== "string" || !placement.targetModuleId) throw new Error("A door requires a target world cube piece.");
+    if (placement.targetModuleId === placement.moduleId) throw new Error("A door must target a different world cube piece.");
   }
   return { ...placement, coordinate: [...placement.coordinate], faces, axes, cell, ...(placement.kind === "door" ? { doorFace: faces[2], doorAxis: axes[2] } : {}) };
 }
@@ -78,6 +89,24 @@ export function validateLevel(level) {
   const occupied = new Set();
   for (const item of items) {
     if (!ids.has(item.moduleId)) throw new Error(`Unknown module: ${item.moduleId}`);
+    if (item.kind === "door") {
+      if (!ids.has(item.targetModuleId)) throw new Error(`Unknown door target module: ${item.targetModuleId}`);
+      const sourceModule = level.modules.find((module) => module.id === item.moduleId);
+      const targetModule = level.modules.find((module) => module.id === item.targetModuleId);
+      const step = FACE_STEP[item.doorFace];
+      const touchesTarget = ["x", "y", "z"].every((axis) => (
+        targetModule.position[axis] === sourceModule.position[axis] + (axis === step.axis ? step.amount : 0)
+      ));
+      if (!touchesTarget) throw new Error(`Door ${item.id} does not face its target world cube piece.`);
+      const reciprocal = items.find((candidate) => (
+        candidate.kind === "door"
+        && candidate.moduleId === item.targetModuleId
+        && candidate.targetModuleId === item.moduleId
+        && candidate.doorFace === OPPOSITE_COLOR[item.doorFace]
+        && ["x", "y", "z"].every((axis) => axis === item.doorAxis || candidate.cell[axis] === item.cell[axis])
+      ));
+      if (!reciprocal) throw new Error(`Door ${item.id} requires an aligned reciprocal door in ${item.targetModuleId}.`);
+    }
     if (item.kind !== "door") {
       const key = `${item.moduleId}:${item.cell.x},${item.cell.y},${item.cell.z}`;
       if (occupied.has(key)) throw new Error("Only one non-door item may occupy a grid cell.");

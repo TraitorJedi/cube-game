@@ -4,7 +4,12 @@ import { createPrimaryLevel, validateLevel } from "./levels.js";
 const LOCAL_KEY = "cubesque-ape:primary-world";
 const url = import.meta.env.VITE_SUPABASE_URL;
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-const supabase = url && key ? createClient(url, key) : null;
+const supabase = url && key ? createClient(url, key, {
+  auth: {
+    detectSessionInUrl: false,
+    persistSession: false,
+  },
+}) : null;
 
 export function loadLocalLevel() {
   try { return validateLevel(JSON.parse(localStorage.getItem(LOCAL_KEY))) } catch { return createPrimaryLevel(); }
@@ -14,9 +19,10 @@ export function hasSupabase() { return Boolean(supabase); }
 
 export async function getAuthClaims() {
   if (!supabase) return null;
-  const { data, error } = await supabase.auth.getClaims();
+  const { data, error } = await supabase.auth.getUser();
   if (error) throw error;
-  return data.claims ?? null;
+  if (!data.user) return null;
+  return { email: data.user.email, sub: data.user.id };
 }
 
 export function onAuthChange(callback) {
@@ -25,21 +31,10 @@ export function onAuthChange(callback) {
   return () => subscription.unsubscribe();
 }
 
-export async function sendMagicLink(email) {
+export async function signIn(email, password) {
   if (!supabase) throw new Error("Supabase is not configured.");
-  const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } });
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw error;
-}
-
-export async function verifyMagicLinkFromUrl() {
-  if (!supabase) return { verified: false };
-  const params = new URLSearchParams(window.location.search);
-  const token_hash = params.get("token_hash");
-  if (!token_hash) return { verified: false };
-  const { error } = await supabase.auth.verifyOtp({ token_hash, type: params.get("type") || "email" });
-  if (error) throw error;
-  window.history.replaceState({}, document.title, window.location.pathname);
-  return { verified: true };
 }
 
 export async function signOut() {
@@ -48,16 +43,27 @@ export async function signOut() {
   if (error) throw error;
 }
 
-export async function loadPrimaryLevel() {
-  if (!supabase) return loadLocalLevel();
+export async function loadRemotePrimaryLevel() {
+  if (!supabase) throw new Error("Supabase is not configured.");
   const { data: level, error } = await supabase.from("levels").select("id, slug, name").eq("slug", "primary-world").single();
-  if (error || !level) return loadLocalLevel();
+  if (error) throw error;
+  if (!level) throw new Error("The shared primary level was not found.");
   const [{ data: modules, error: moduleError }, { data: items, error: itemError }] = await Promise.all([
     supabase.from("level_modules").select("module_id, label, position, colors").eq("level_id", level.id),
     supabase.from("level_items").select("id, module_id, kind, coordinate, target_module_id").eq("level_id", level.id),
   ]);
-  if (moduleError || itemError) return loadLocalLevel();
+  if (moduleError) throw moduleError;
+  if (itemError) throw itemError;
   return validateLevel({ ...level, modules: modules.map((row) => ({ id: row.module_id, label: row.label, position: row.position, colors: row.colors })), items: items.map((row) => ({ id: row.id, moduleId: row.module_id, kind: row.kind, coordinate: row.coordinate, targetModuleId: row.target_module_id })) });
+}
+
+export async function loadPrimaryLevel() {
+  if (!supabase) return loadLocalLevel();
+  try {
+    return await loadRemotePrimaryLevel();
+  } catch {
+    return loadLocalLevel();
+  }
 }
 
 export async function savePrimaryLevel(level) {
