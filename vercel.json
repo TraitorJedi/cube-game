@@ -1,5 +1,8 @@
 {
   "cleanUrls": true,
+  "rewrites": [
+    { "source": "/editor/:path*", "destination": "/index.html" }
+  ],
   "headers": [
     {
       "source": "/(.*)",

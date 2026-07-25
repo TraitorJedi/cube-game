@@ -25,21 +25,10 @@ export function onAuthChange(callback) {
   return () => subscription.unsubscribe();
 }
 
-export async function sendMagicLink(email) {
+export async function signIn(email, password) {
   if (!supabase) throw new Error("Supabase is not configured.");
-  const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } });
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw error;
-}
-
-export async function verifyMagicLinkFromUrl() {
-  if (!supabase) return { verified: false };
-  const params = new URLSearchParams(window.location.search);
-  const token_hash = params.get("token_hash");
-  if (!token_hash) return { verified: false };
-  const { error } = await supabase.auth.verifyOtp({ token_hash, type: params.get("type") || "email" });
-  if (error) throw error;
-  window.history.replaceState({}, document.title, window.location.pathname);
-  return { verified: true };
 }
 
 export async function signOut() {

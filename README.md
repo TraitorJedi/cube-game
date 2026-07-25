@@ -14,3 +14,14 @@ It uses [iamthecu.be](https://iamthecu.be/) as a reference starting point for th
 Run `npm run dev`, then open `/` for the current React game or `/legacy` for the
 preserved implementation.
 
+# Private level editor
+
+The level editor is a separate, lazy-loaded module at `/editor`. The public game does not link to it or render editor controls. Visitors to `/editor` see only the sign-in screen until Supabase returns a valid session; the editor bundle is loaded after that check succeeds.
+
+The editor supports existing-user email/password sign-in only. To provision the initial account:
+
+1. In Supabase, open **Authentication → Providers → Email** and disable new-user sign-ups.
+2. Open **Authentication → Users → Add user → Create new user**, then set the editor user's email and password.
+3. Keep `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` configured for the deployment.
+
+Do not put a Supabase secret or service-role key in Vite environment variables. The existing row-level security policies remain the server-side write boundary: only the owning authenticated user can modify the primary level.

@@ -6,8 +6,7 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { generateClassicApe, generateCyberApe, generateAstronautApe } from "../voxel-art/generator.js";
 import { GRID_SIZE, FACE_COLORS, MOVE_CONFIG, createGameState, getActivePiece, getFloorFace, movePlayerInWorld, resolveItemCell, turnCube } from "./engine.js";
-import { createPrimaryLevel, validatePlacement } from "./levels.js";
-import { hasSupabase, loadPrimaryLevel, savePrimaryLevel, getAuthClaims, onAuthChange, sendMagicLink, signOut, verifyMagicLinkFromUrl } from "./level-store.js";
+import { loadPrimaryLevel } from "./level-store.js";
 
 const { createElement: h } = React;
 const STEP = 1.92;
@@ -437,25 +436,6 @@ function CubeScene({ game, onTurn }) {
   return h("div", { className: "scene-host", ref: host, "aria-label": "Interactive 3D Rubik's Cube puzzle" });
 }
 
-function LevelEditor({ level, onChange }) {
-  const [moduleId, setModuleId] = useState("r/w/b"), [kind, setKind] = useState("obstacle"), [coordinate, setCoordinate] = useState("g,o,y,0,0,0"), [message, setMessage] = useState("");
-  const add = () => { try { const values = coordinate.split(",").map((value, index) => index < 3 ? value.trim().toLowerCase() : Number(value)); const item = validatePlacement({ id: `${kind}-${crypto.randomUUID()}`, moduleId, kind, coordinate: values }); if (kind === "spawn" && level.items.some((existing) => existing.kind === "spawn")) throw new Error("Remove the existing spawn first."); onChange({ ...level, items: [...level.items, item] }); setMessage("Item placed."); } catch (error) { setMessage(error.message); } };
-  return h("aside", { className: "level-editor" }, h("p", { className: "eyebrow" }, "Level design"), h("h2", null, level.name), h("label", null, "World cube piece", h("select", { value: moduleId, onChange: (event) => setModuleId(event.target.value) }, level.modules.map((module) => h("option", { key: module.id, value: module.id }, module.label)))), h("label", null, "Place", h("select", { value: kind, onChange: (event) => setKind(event.target.value) }, ["obstacle", "golden_banana", "door", "spawn"].map((value) => h("option", { key: value, value }, value.replace("_", " "))))), h("label", null, "Coordinate", h("input", { value: coordinate, onChange: (event) => setCoordinate(event.target.value) })), h("p", { className: "coordinate-help" }, "Values pair by position: color 1/2/3, then distance 1/2/3. For a door, color 3 selects the face and distance 3 must be 0. Example: g,y,o,3,0,0 is Orange, 3 from Green, 0 from Yellow."), h("button", { type: "button", onClick: add }, "Place item"), message && h("p", { role: "status" }, message), h("div", { className: "item-list" }, level.items.map((item) => h("div", { className: "placed-item", key: item.id }, h("span", null, `${item.moduleId} · ${item.kind}`), h("code", null, `[${item.coordinate.join(", ")}]`), h("button", { type: "button", onClick: () => onChange({ ...level, items: level.items.filter((existing) => existing.id !== item.id) }) }, "Remove")))));
-}
-
-function AuthControl() {
-  const [email, setEmail] = useState(""), [claims, setClaims] = useState(null), [status, setStatus] = useState("");
-  useEffect(() => {
-    if (!hasSupabase()) return;
-    verifyMagicLinkFromUrl().then(() => getAuthClaims()).then(setClaims).catch((error) => setStatus(error.message));
-    return onAuthChange(setClaims);
-  }, []);
-  const submit = async (event) => { event.preventDefault(); try { setStatus("Sending magic link…"); await sendMagicLink(email); setStatus("Check your email for the sign-in link."); } catch (error) { setStatus(error.message); } };
-  if (!hasSupabase()) return null;
-  if (claims) return h("div", { className: "auth-control" }, h("span", null, claims.email), h("button", { type: "button", onClick: async () => { await signOut(); setClaims(null); } }, "Sign out"));
-  return h("form", { className: "auth-control", onSubmit: submit }, h("input", { type: "email", value: email, required: true, placeholder: "designer@email.com", "aria-label": "Email address", onChange: (event) => setEmail(event.target.value) }), h("button", { type: "submit" }, "Email sign-in"), status && h("span", { role: "status" }, status));
-}
-
 function fullscreenElement() {
   return document.fullscreenElement ?? document.webkitFullscreenElement;
 }
@@ -644,7 +624,7 @@ function TutorialOverlay({ step, onNext, onSkip, onFinish }) {
           : h("button", { className: "tutorial-next", type: "button", autoFocus: true, onClick: step === TUTORIAL_STEPS.length - 1 ? onFinish : onNext }, step === TUTORIAL_STEPS.length - 1 ? "Start exploring" : "Next"))));
 }
 
-function LegacyGameShell({ game, setGame, settingsOpen, setSettingsOpen, editorOpen, setEditorOpen, save, saveState, updateLevel, setMode, turn, tutorialStep, setTutorialStep, completeTutorial, replayTutorial }) {
+function LegacyGameShell({ game, setGame, settingsOpen, setSettingsOpen, setMode, turn, tutorialStep, setTutorialStep, completeTutorial, replayTutorial }) {
   const tutorialTargetsModeButton = tutorialStep === 2;
   const toggleMode = () => {
     const nextMode = game.mode === "cube" ? "interior" : "cube";
@@ -655,8 +635,7 @@ function LegacyGameShell({ game, setGame, settingsOpen, setSettingsOpen, editorO
     h("p", { className: "game-brand" }, "Cubesque-Ape"), h("div", { className: "scene-shell" }, h(CubeScene, { game, onTurn: turn })),
     h("button", { className: "settings-toggle", type: "button", "aria-label": "Open Settings", onClick: () => setSettingsOpen(true) }, "⚙"),
     h(FullscreenControl, { className: "fullscreen-toggle" }),
-    h("div", { className: "settings-modal", hidden: !settingsOpen, "aria-hidden": !settingsOpen }, h("div", { className: "settings-backdrop", onClick: () => setSettingsOpen(false) }), h("div", { className: "settings-content" }, h("div", { className: "settings-header" }, h("h2", null, "Settings"), h("button", { className: "settings-close", type: "button", onClick: () => setSettingsOpen(false) }, "×")), h("div", { className: "settings-body" }, h("div", { className: "settings-section" }, h("h3", null, "Select Ape Suit"), h("div", { className: "skin-cards-list" }, [["classic", "Classic Retro", "Organic brown fur with visible eyes, no red tie."], ["cyber", "Cyber Mecha", "Glow reactor chest plate, left mecha arm, and visor."], ["astronaut", "Astronaut Suit", "Spacesuit with oxygen tanks and gold visor flipped up."]].map(([skin, title, description]) => h("button", { type: "button", key: skin, className: `skin-card ${game.skin === skin ? "active" : ""}`, onClick: () => setGame((current) => ({ ...current, skin })) }, h("span", { className: "skin-card-header" }, title), h("span", { className: "skin-card-desc" }, description))))), h("div", { className: "settings-section settings-actions" }, h(AuthControl), h("button", { type: "button", onClick: save }, "Save level"), h("button", { type: "button", onClick: () => setEditorOpen((open) => !open) }, editorOpen ? "Close level editor" : "Level editor"), h("button", { type: "button", onClick: replayTutorial }, "Replay tutorial"), saveState && h("p", { role: "status" }, saveState))))),
-    editorOpen && h(LevelEditor, { level: game.level, onChange: updateLevel }),
+    h("div", { className: "settings-modal", hidden: !settingsOpen, "aria-hidden": !settingsOpen }, h("div", { className: "settings-backdrop", onClick: () => setSettingsOpen(false) }), h("div", { className: "settings-content" }, h("div", { className: "settings-header" }, h("h2", null, "Settings"), h("button", { className: "settings-close", type: "button", onClick: () => setSettingsOpen(false) }, "×")), h("div", { className: "settings-body" }, h("div", { className: "settings-section" }, h("h3", null, "Select Ape Suit"), h("div", { className: "skin-cards-list" }, [["classic", "Classic Retro", "Organic brown fur with visible eyes, no red tie."], ["cyber", "Cyber Mecha", "Glow reactor chest plate, left mecha arm, and visor."], ["astronaut", "Astronaut Suit", "Spacesuit with oxygen tanks and gold visor flipped up."]].map(([skin, title, description]) => h("button", { type: "button", key: skin, className: `skin-card ${game.skin === skin ? "active" : ""}`, onClick: () => setGame((current) => ({ ...current, skin })) }, h("span", { className: "skin-card-header" }, title), h("span", { className: "skin-card-desc" }, description))))), h("div", { className: "settings-section settings-actions" }, h("button", { type: "button", onClick: replayTutorial }, "Replay tutorial"))))),
     game.levelComplete && h("div", { className: "victory-modal", role: "dialog", "aria-modal": true }, h("div", { className: "victory-backdrop" }), h("div", { className: "victory-content" }, h("p", { className: "victory-kicker" }, "Golden banana collected"), h("h2", null, "Congrats, you have beat the level!"), h("button", { className: "victory-continue", type: "button", autoFocus: true, onClick: () => setGame(createGameState(game.level)) }, "Continue"))),
     h("button", { className: `mode-toggle ${tutorialTargetsModeButton ? "tutorial-mode-target" : ""}`, type: "button", "aria-pressed": game.mode === "interior", onClick: toggleMode }, game.mode === "cube" ? "Little cube" : "Big cube"),
     game.mode === "interior" && h("nav", { className: "touch-move-controls", "aria-label": "Move the Ape" }, [["ArrowUp", "touch-move-up", "▲"], ["ArrowLeft", "touch-move-left", "◀"], ["ArrowRight", "touch-move-right", "▶"], ["ArrowDown", "touch-move-down", "▼"]].map(([key, className, icon]) => h("button", { key, type: "button", className: `touch-move ${className}`, onClick: () => setGame((current) => movePlayerInWorld(current, key)) }, icon))),
@@ -667,9 +646,7 @@ function LegacyGameShell({ game, setGame, settingsOpen, setSettingsOpen, editorO
 
 function App() {
   const [game, setGame] = useState(createGameState);
-  const [editorOpen, setEditorOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [saveState, setSaveState] = useState("");
   const [tutorialStep, setTutorialStep] = useState(() => {
     try { return window.localStorage.getItem(TUTORIAL_STORAGE_KEY) === "complete" ? null : mobileTutorialViewport() ? -1 : 0; }
     catch { return mobileTutorialViewport() ? -1 : 0; }
@@ -682,25 +659,23 @@ function App() {
   // cube-turn boundaries, where the active chamber's own obstacles are known.
   const setMode = (mode) => setGame((current) => ({ ...current, mode }));
   const turn = (move) => setGame((current) => current.mode === "cube" && typeof move === "string" ? turnCube(current, move) : current);
-  const legacyUpdateLevel = (level) => setGame((current) => ({ ...current, level }));
-  const legacySave = async () => { try { const result = await savePrimaryLevel(game.level); setSaveState(result.source === "supabase" ? "Saved to Supabase." : "Saved locally."); } catch (error) { setSaveState(error.message); } };
   const completeTutorial = () => {
     try { window.localStorage.setItem(TUTORIAL_STORAGE_KEY, "complete"); } catch {}
     setTutorialStep(null);
   };
   const replayTutorial = () => {
     setSettingsOpen(false);
-    setEditorOpen(false);
     setGame((current) => ({ ...current, mode: "cube" }));
     setTutorialStep(mobileTutorialViewport() && !fullscreenDisplayMode() ? -1 : 0);
   };
-  return h(LegacyGameShell, { game, setGame, settingsOpen, setSettingsOpen, editorOpen, setEditorOpen, save: legacySave, saveState, updateLevel: legacyUpdateLevel, setMode, turn, tutorialStep, setTutorialStep, completeTutorial, replayTutorial });
-  /* Earlier experimental editor UI retained as migration reference only.
-  const updateLevel = (level) => setGame((current) => ({ ...current, level }));
-  const save = async () => { try { const result = await savePrimaryLevel(game.level); setSaveState(result.source === "supabase" ? "Saved to Supabase." : "Saved locally — add .env credentials to share."); } catch (error) { setSaveState(error.message); } };
-  return h("main", { className: "app" }, game.mode === "cube" ? cubePanel : h("div", { className: "brand" }, h("p", { className: "eyebrow" }, "Cube / Interior"), h("h1", null, "Primary World")), h("div", { className: "hud" }, h("p", null, "Active chamber"), h("strong", null, game.level.modules.find((module) => module.id === game.activePieceId)?.label), h("p", null, `Floor: ${floor ?? "core"} · Gravity: Yellow`)), h(CubeScene, { game }), h("div", { className: "mode-switch" }, h("button", { type: "button", onClick: () => setMode("cube") }, "Cube mode"), h("button", { type: "button", onClick: () => setMode("interior") }, "Enter chamber"), h("button", { type: "button", onClick: () => setEditorOpen((open) => !open) }, editorOpen ? "Close editor" : "Level editor")), h("div", { className: "save-controls" }, h(AuthControl), h(SkinControl, { skin: game.skin, onChange: (skin) => setGame((current) => ({ ...current, skin })) }), h("button", { type: "button", onClick: save }, "Save level"), h("button", { type: "button", onClick: () => updateLevel(createPrimaryLevel()) }, "Restore primary"), saveState && h("span", { role: "status" }, saveState)), editorOpen && h(LevelEditor, { level: game.level, onChange: updateLevel }), game.levelComplete && h("div", { className: "victory-overlay", role: "dialog", "aria-modal": true }, h("div", { className: "victory-content" }, h("p", { className: "eyebrow" }, "Golden banana collected"), h("h2", null, "Congrats, you beat the level!"), h("button", { type: "button", autoFocus: true, onClick: () => setGame(createGameState(game.level)) }, "Continue"))), h("div", { className: "instructions" }, game.mode === "interior" ? h(React.Fragment, null, h("kbd", null, "Arrow keys"), " move on the world-aligned floor.") : "Drag empty space to orbit. Select any of the 27 world modules in the level editor."));
-  return h("main", { className: "app" }, game.mode === "cube" ? cubePanel : h("div", { className: "brand" }, h("p", { className: "eyebrow" }, "Cube / Interior"), h("h1", null, "A puzzle engine begins here."), h("p", null, "Navigate a single cell through the living core of a Rubik's Cube.")), h("div", { className: "hud" }, h("p", null, "Active chamber"), h("strong", null, "Red / White / Blue"), h("p", null, `Floor: ${floor ?? "core"} · Gravity: Yellow`)), h(CubeScene, { game }), h("div", { className: "mode-switch", "aria-label": "Interaction mode" }, h("button", { type: "button", "aria-pressed": game.mode === "cube", onClick: () => setMode("cube") }, "Cube mode"), h("button", { type: "button", "aria-pressed": game.mode === "interior", onClick: () => setMode("interior") }, "Enter chamber")), h("div", { className: "instructions" }, game.mode === "interior" ? h(React.Fragment, null, h("kbd", null, "Arrow keys"), " move on the 4 x 4 world-aligned floor.") : "Drag empty space to orbit. Click a face-turn control or run cube notation."));
-  */
+  return h(LegacyGameShell, { game, setGame, settingsOpen, setSettingsOpen, setMode, turn, tutorialStep, setTutorialStep, completeTutorial, replayTutorial });
 }
 
-createRoot(document.getElementById("root")).render(h(App));
+const root = createRoot(document.getElementById("root"));
+if (window.location.pathname === "/editor" || window.location.pathname.startsWith("/editor/")) {
+  import("./editor/EditorRoute.tsx")
+    .then(({ default: EditorRoute }) => root.render(h(EditorRoute)))
+    .catch(() => root.render(h("main", { className: "editor-error", role: "alert" }, "The editor could not be loaded.")));
+} else {
+  root.render(h(App));
+}
