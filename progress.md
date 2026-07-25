@@ -2,6 +2,8 @@ Original prompt: I'm missing the ability to move the center rings, also some of 
 
 ## Progress
 
+- PR review hardening (2026-07-24): made editor loads strict so a Supabase read failure cannot expose a stale local/default draft for remote saving. Editor controls remain disabled until the shared level loads. Door placement now captures a target piece, and level validation requires each doorway to face an adjacent target with an aligned reciprocal door. TypeScript and focused deterministic door-validation checks pass.
+
 - Editor fresh-login hardening (2026-07-24): disabled Supabase browser-session persistence and URL session detection, so every `/editor` page load starts at the password sign-in screen rather than silently reusing an earlier browser login. The editor gate now confirms the current user with the Supabase Auth server via `getUser()` before lazy-loading the editor module. Existing RLS policies continue to restrict writes to the authenticated level owner. A clean browser session rendered only the email/password form, and the production build passes; Playwright was not run per repository instruction.
 
 - Settings editor link (2026-07-24): added a Level editor link to the public game's Settings panel. It navigates to `/editor`; the destination remains protected by the existing Supabase session gate and exposes sign-in only. The production build passes; Playwright was not run per repository instruction.

@@ -25,3 +25,5 @@ The editor supports existing-user email/password sign-in only. To provision the 
 3. Keep `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` configured for the deployment.
 
 Do not put a Supabase secret or service-role key in Vite environment variables. The existing row-level security policies remain the server-side write boundary: only the owning authenticated user can modify the primary level.
+
+The editor enables saving only after the shared level has loaded successfully; it never treats the public game's local fallback as an editable remote draft. Door placements require a target cube piece and a matching aligned door back from that piece before the level will validate and save.

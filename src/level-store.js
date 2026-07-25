@@ -43,16 +43,27 @@ export async function signOut() {
   if (error) throw error;
 }
 
-export async function loadPrimaryLevel() {
-  if (!supabase) return loadLocalLevel();
+export async function loadRemotePrimaryLevel() {
+  if (!supabase) throw new Error("Supabase is not configured.");
   const { data: level, error } = await supabase.from("levels").select("id, slug, name").eq("slug", "primary-world").single();
-  if (error || !level) return loadLocalLevel();
+  if (error) throw error;
+  if (!level) throw new Error("The shared primary level was not found.");
   const [{ data: modules, error: moduleError }, { data: items, error: itemError }] = await Promise.all([
     supabase.from("level_modules").select("module_id, label, position, colors").eq("level_id", level.id),
     supabase.from("level_items").select("id, module_id, kind, coordinate, target_module_id").eq("level_id", level.id),
   ]);
-  if (moduleError || itemError) return loadLocalLevel();
+  if (moduleError) throw moduleError;
+  if (itemError) throw itemError;
   return validateLevel({ ...level, modules: modules.map((row) => ({ id: row.module_id, label: row.label, position: row.position, colors: row.colors })), items: items.map((row) => ({ id: row.id, moduleId: row.module_id, kind: row.kind, coordinate: row.coordinate, targetModuleId: row.target_module_id })) });
+}
+
+export async function loadPrimaryLevel() {
+  if (!supabase) return loadLocalLevel();
+  try {
+    return await loadRemotePrimaryLevel();
+  } catch {
+    return loadLocalLevel();
+  }
 }
 
 export async function savePrimaryLevel(level) {

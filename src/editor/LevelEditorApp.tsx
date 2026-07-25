@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { createPrimaryLevel, validatePlacement } from "../levels.js";
-import { loadPrimaryLevel, savePrimaryLevel, signOut } from "../level-store.js";
+import { loadRemotePrimaryLevel, savePrimaryLevel, signOut } from "../level-store.js";
 
 type LevelItem = {
   id: string;
   moduleId: string;
   kind: "obstacle" | "golden_banana" | "door" | "spawn";
   coordinate: Array<string | number>;
+  targetModuleId?: string;
 };
 
 type LevelModule = {
@@ -27,16 +28,22 @@ export default function LevelEditorApp({ email, onSignedOut }: { email: string; 
   const [moduleId, setModuleId] = useState("r/w/b");
   const [kind, setKind] = useState<ItemKind>("obstacle");
   const [coordinate, setCoordinate] = useState("g,o,y,0,0,0");
+  const [targetModuleId, setTargetModuleId] = useState("w/b");
   const [status, setStatus] = useState("Loading level…");
+  const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    loadPrimaryLevel()
+    loadRemotePrimaryLevel()
       .then((loaded) => {
         setLevel(loaded as Level);
+        setLoaded(true);
         setStatus("");
       })
-      .catch((error) => setStatus(error instanceof Error ? error.message : "Unable to load the level."));
+      .catch((error) => {
+        setLoaded(false);
+        setStatus(error instanceof Error ? `Unable to load the shared level: ${error.message}` : "Unable to load the shared level.");
+      });
   }, []);
 
   const addItem = () => {
@@ -47,6 +54,7 @@ export default function LevelEditorApp({ email, onSignedOut }: { email: string; 
         moduleId,
         kind,
         coordinate: values,
+        ...(kind === "door" ? { targetModuleId } : {}),
       }) as LevelItem;
       if (kind === "spawn" && level.items.some((existing) => existing.kind === "spawn")) {
         throw new Error("Remove the existing spawn first.");
@@ -99,15 +107,24 @@ export default function LevelEditorApp({ email, onSignedOut }: { email: string; 
             <p className="eyebrow">Level design</p>
             <h2 id="level-name">{level.name}</h2>
           </div>
-          <button disabled={saving} onClick={save} type="button">
+          <button disabled={saving || !loaded} onClick={save} type="button">
             {saving ? "Saving…" : "Save level"}
           </button>
         </div>
 
-        <div className="editor-fields">
+        <fieldset className="editor-fields" disabled={saving || !loaded}>
           <label>
             World cube piece
-            <select onChange={(event) => setModuleId(event.target.value)} value={moduleId}>
+            <select
+              onChange={(event) => {
+                const nextModuleId = event.target.value;
+                setModuleId(nextModuleId);
+                setTargetModuleId((current) => current === nextModuleId
+                  ? level.modules.find((module) => module.id !== nextModuleId)?.id ?? ""
+                  : current);
+              }}
+              value={moduleId}
+            >
               {level.modules.map((module) => <option key={module.id} value={module.id}>{module.label}</option>)}
             </select>
           </label>
@@ -119,24 +136,35 @@ export default function LevelEditorApp({ email, onSignedOut }: { email: string; 
               ))}
             </select>
           </label>
-          <label>
+          {kind === "door" && (
+            <label>
+              Target world cube piece
+              <select onChange={(event) => setTargetModuleId(event.target.value)} value={targetModuleId}>
+                {level.modules.filter((module) => module.id !== moduleId).map((module) => (
+                  <option key={module.id} value={module.id}>{module.label}</option>
+                ))}
+              </select>
+            </label>
+          )}
+          <label className="editor-coordinate-field">
             Coordinate
             <input onChange={(event) => setCoordinate(event.target.value)} value={coordinate} />
           </label>
           <button onClick={addItem} type="button">Place item</button>
-        </div>
+        </fieldset>
 
         <p className="coordinate-help">
-          Values pair by position: color 1/2/3, then distance 1/2/3. For a door, color 3 selects the face and distance 3 must be 0.
+          Values pair by position: color 1/2/3, then distance 1/2/3. For a door, color 3 selects the face and distance 3 must be 0. Add an aligned door in the target piece that points back before saving.
         </p>
         {status && <p className="editor-status" role="status">{status}</p>}
 
         <div className="item-list">
           {level.items.map((item) => (
             <div className="placed-item" key={item.id}>
-              <span>{item.moduleId} · {item.kind}</span>
+              <span>{item.moduleId} · {item.kind}{item.targetModuleId ? ` → ${item.targetModuleId}` : ""}</span>
               <code>[{item.coordinate.join(", ")}]</code>
               <button
+                disabled={saving || !loaded}
                 onClick={() => setLevel((current) => ({
                   ...current,
                   items: current.items.filter((existing) => existing.id !== item.id),
