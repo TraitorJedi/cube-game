@@ -1,29 +1,35 @@
-# Cubesque-Ape
+# Cubesque-Ape — Next.js port
 
-The live game at `/` is the React/Three implementation in `src/main.js`. The
-preserved DOM/CSS implementation remains available at `/legacy` from
-`legacy/app.js`.
-An isometric cube-puzzle game whose player is a voxel ape. The ape is built
-from cuboids and fits entirely inside one 1 × 1 × 1 cell of the active 4 × 4 × 4
-interior grid.
+This is the Create T3 App / Next.js App Router port of the Vite game in the sibling `cube-game` directory.
 
-It uses [iamthecu.be](https://iamthecu.be/) as a reference starting point for the concept, interaction style, and overall direction, but the source code in this repository was recreated independently for this project.
+## Stack
 
-## Run locally
+- Next.js App Router
+- React + Three.js
+- TypeScript for route/editor code, with the established deterministic game engine retained in JavaScript during the framework migration
+- Tailwind CSS plus the preserved game stylesheet
+- Supabase for the optional private level editor
 
-Run `npm run dev`, then open `/` for the current React game or `/legacy` for the
-preserved implementation.
+## Local development
 
-# Private level editor
+```bash
+npm run dev
+```
 
-The level editor is a separate, lazy-loaded module at `/editor`. The public game does not link to it or render editor controls. Visitors to `/editor` see only the sign-in screen until Supabase returns a valid session; the editor bundle is loaded after that check succeeds.
+Open `http://localhost:3000` for the game and `http://localhost:3000/editor` for the private editor.
 
-The editor supports existing-user email/password sign-in only. To provision the initial account:
+Copy `.env.example` to `.env.local` and populate these values when the editor should use Supabase:
 
-1. In Supabase, open **Authentication → Providers → Email** and disable new-user sign-ups.
-2. Open **Authentication → Users → Add user → Create new user**, then set the editor user's email and password.
-3. Keep `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` configured for the deployment.
+```dotenv
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+```
 
-Do not put a Supabase secret or service-role key in Vite environment variables. The existing row-level security policies remain the server-side write boundary: only the owning authenticated user can modify the primary level.
+Without Supabase configuration, the public game uses its local primary level and the editor displays a configuration-required state.
 
-The editor enables saving only after the shared level has loaded successfully; it never treats the public game's local fallback as an editable remote draft. Door placements require a target cube piece and a matching aligned door back from that piece before the level will validate and save.
+## Verification
+
+```bash
+npm run check
+npm run build
+```

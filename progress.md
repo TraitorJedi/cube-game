@@ -1,181 +1,44 @@
-Original prompt: I'm missing the ability to move the center rings, also some of the motions should be relative to the face, each face should have 2 rotation based on vertical or horizantal
+Original prompt: Ok so I have the cube-game directory that currently has my vite based game. I want to port this game into a fresh next.js using create-t3-app. I downloaded the create t3 source into the create-t3-app directory. you can also reference https://create.t3.gg/en/introduction. use the npm create t3-app@latest when ready @Computer-Use
 
 ## Progress
 
-- PR review hardening (2026-07-24): made editor loads strict so a Supabase read failure cannot expose a stale local/default draft for remote saving. Editor controls remain disabled until the shared level loads. Door placement now captures a target piece, and level validation requires each doorway to face an adjacent target with an aligned reciprocal door. TypeScript and focused deterministic door-validation checks pass.
+- Scaffolded `cube-game-next` with `npm create t3-app@latest` using App Router, Tailwind CSS, ESLint, npm, and no nested Git repository.
+- Kept the original `cube-game` directory untouched as the working Vite reference.
+- Ported the React/Three.js game into a client component at `/`.
+- Converted the private editor into an App Router route at `/editor`.
+- Renamed Vite public environment variables to their Next.js `NEXT_PUBLIC_` equivalents.
 
-- Editor fresh-login hardening (2026-07-24): disabled Supabase browser-session persistence and URL session detection, so every `/editor` page load starts at the password sign-in screen rather than silently reusing an earlier browser login. The editor gate now confirms the current user with the Supabase Auth server via `getUser()` before lazy-loading the editor module. Existing RLS policies continue to restrict writes to the authenticated level owner. A clean browser session rendered only the email/password form, and the production build passes; Playwright was not run per repository instruction.
+## Visual thesis
 
-- Settings editor link (2026-07-24): added a Level editor link to the public game's Settings panel. It navigates to `/editor`; the destination remains protected by the existing Supabase session gate and exposes sign-in only. The production build passes; Playwright was not run per repository instruction.
+Cubesque-Ape remains a full-viewport charcoal isometric puzzle stage with bright physical cube stickers, a gold active-piece signal, and restrained teal UI chrome.
 
-- Private editor boundary (2026-07-24): moved level editing to lazy TypeScript modules at `/editor`. The public game no longer renders auth, save, or editor controls. The route verifies a Supabase session before importing the editor and exposes existing-user email/password sign-in only. Added explicit Vercel rewrites for both bare `/editor` and nested editor paths; their destination is `/` because `cleanUrls` canonicalizes `/index.html`. Added strict TypeScript checks and manual single-user provisioning notes. Pre-commit review removed an incorrect sign-in password-length constraint, ensured the editor workspace scrolls inside the fixed game shell, and handles sign-out failures. Production build and focused in-app browser checks pass; Playwright was not run per repository instruction.
+## Content plan
 
-- Pre-PR code review (2026-07-23): reviewed the complete four-commit branch
-  against current `origin/main`. Removed the stale `/react.html` preview guard
-  so every production React entry consistently loads the configured primary
-  level, and refreshed comments that still described React as a preview. The
-  production build passes; focused in-app browser checks confirmed `/` and
-  `/legacy` render from their intended scripts with no console warnings or
-  errors. Playwright was not run per repository instruction.
+- `/`: the game stage itself, with settings, mode switch, tutorial, and victory states.
+- `/editor`: the private Supabase-backed level workspace.
 
-- React production cutover (2026-07-23): promoted `src/main.js` to the default
-  `/` entry, moved the preserved DOM/CSS implementation and its `app.js` to
-  `/legacy`, and updated the pre-build guard, Vite multi-page inputs, and
-  migration documentation to enforce the new boundary. The production build
-  passes. Focused in-app browser checks confirmed `/` loads only
-  `/src/main.js`, `/legacy` loads only `/legacy/app.js`, both game views render,
-  and neither route reports console warnings or errors. Playwright was not run
-  per repository instruction.
+## Interaction thesis
 
-- React mobile Interior input-performance pass (2026-07-23): traced the slow touch INP to `CubeScene` rebuilding the full chamber, regenerating the 22,848-instance Classic Ape, constructing 27 hidden cubelets, and running the multisampled half-float bloom pipeline after every cell movement. Split player-transform updates from structural scene rebuilds, stopped creating overview cubelets in Interior mode, render the chamber directly because active-piece bloom is Cube-only, cap mobile DPR at 1.5, and dispose replaced Three.js resources. Focused in-app browser verification at 737 × 393 exercised a right/down/left/up movement loop, confirmed the Ape returned to its initial cell, confirmed Cube-mode gold bloom survives the direct-render split, and found no console warnings/errors. Playwright was not run per repository instruction.
+- Preserve direct sticker slice dragging and snap/flick motion.
+- Preserve continuous empty-space orbiting.
+- Preserve mode transitions, tutorial focus, settings, touch movement, and victory feedback.
 
-- React mobile tutorial preflight (2026-07-23): first-time mobile-sized/touch visitors now remain in a blocking preflight before tutorial step one. Portrait state asks them to rotate; landscape state requires a user-initiated fullscreen request. Standalone/fullscreen display modes satisfy the gate automatically, while browsers without the Fullscreen API are directed to reopen the game from the Home Screen. Focused in-app browser verification at 393 × 737 and 737 × 393 confirmed the rotate prompt, fullscreen CTA, successful fullscreen-to-tutorial handoff, desktop bypass, completed-mobile bypass, and no console warnings/errors. Playwright was not run per repository instruction.
+## Verification
 
-- React first-load tutorial (2026-07-23): added a four-step interactive onboarding walkthrough for the React entry. It spotlights the World Cube, identifies the gold Active Cube Piece, requires the real Little cube control to continue, and explains the 4 × 4 interior movement grid. Completion is remembered in localStorage, and Settings includes a Replay tutorial action. Focused in-app browser verification exercised all four steps at 1280 × 720 and 393 × 737, confirmed completion survives reload, confirmed Replay tutorial restarts at step one, and found no console warnings/errors. Playwright was not run per repository instruction.
+- `npm run check` passes; ESLint reports seven non-blocking warnings retained from the generated configs and preserved game/voxel code.
+- `npm run build` passes on Next.js 16.2.11; `/` and `/editor` are statically generated App Router routes.
+- `npm run test:engine` passes the signed U-turn attachment check for the cubelet, Ape, and obstacle.
+- Windows Computer Use verification confirmed tutorial dismissal, pointer orbit, Interior mode, ArrowRight movement, Settings, and the private `/editor` sign-in boundary.
+- The Next.js dev log remained free of application errors during the verified flows.
 
-- React mobile edge-to-edge stage (2026-07-23): found that the legacy `max-width: 980px` breakpoint was overriding React's full-screen scene with a `58vh` canvas and top margin. Added React-root-scoped fixed/dynamic-viewport stage rules so the title stays overlayed and consumes no canvas space. The React entry now opts into safe-area viewport fitting and dark browser theme chrome. Supported mobile browsers show an explicit bottom-right Fullscreen / Exit fullscreen control that requests hidden navigation UI; Android/iOS system gesture areas remain controlled by the OS outside fullscreen. No Playwright check was run per repository instruction.
+## Notes
 
-- React mobile mode-toggle placement (2026-07-23): removed the legacy-only `html.is-mobile` requirement from the existing small-screen `.mode-toggle` rule. The React Little cube / Big cube button now anchors to the bottom-left safe area at viewport widths up to 900px, while wider desktop layouts remain centered. No Playwright check was run per repository instruction.
-
-- React mobile orientation scaling (2026-07-23): replaced the fixed Cube-mode camera distance with responsive projected-bounds framing. Mobile Cube mode fits a padded bound around all eight World Cube corners into 96% of the current perspective frustum, allowing portrait and landscape views to zoom closer and use nearly the full canvas without clipping visible sides. Wider desktop layouts keep their established framing. Per repository instruction, no further Playwright verification was run.
-
-- Vercel Vite 8 build fix (2026-07-19): converted `vite.config.js` from the removed object-form `manualChunks` option to the supported function form while retaining the React, Three.js, and Supabase vendor groupings. The chunk-size warning threshold is 600 kB to accommodate the intentionally isolated 516.21 kB Three.js bundle. `npm.cmd run build` now passes cleanly with Vite 8.1.5 (67 modules transformed). A production-preview smoke capture at `agent-files/output/vercel-build-fix/shot-0.png` was visually inspected and rendered the live cube correctly. The browser reported the pre-existing local Vercel Analytics 404, unrelated to chunk loading; no chunk/module load error occurred.
-
-- React R-turn floor-door fix (2026-07-19): the R/W/B Orange door now uses the requested `(g,w,o,3,3,0)` coordinate form. Interior door geometry handles Down/Up faces as horizontal 4 x 4 surfaces instead of falling through the Right/Left wall branch, so after `R` Orange is the floor, Red is the transparent ceiling, Right stays transparent, and the missing door cell plus gold outline are on the floor. A real upward drag on the active front sticker committed `R`; `agent-files/output/r-floor-door-browser/interior-after-r.png` was visually inspected and the browser console was clean. The focused orientation/cell assertion passed. Final `npm.cmd run build` reached Vite but failed on the repository's existing object-form `manualChunks` config because the installed Vite/Rolldown version now requires a function; this build-config issue was left outside the UI fix.
-
-- React W/B chamber collision and interior-turn handedness fix (2026-07-19): collision now applies an obstacle only while the Ape is inside that obstacle's owning World Cube Piece. The R/W/B obstacle no longer creates an invisible blocked cell in W/B. Cube turns rotate the obstacle with its own piece instead of whichever piece happens to be active, while player settling uses the active chamber's obstacle (or its unobstructed floor). A follow-up visual reproduction found that React's interior-cell transforms had the opposite handedness from its cubelet transforms, so a visible `U` applied `U'` to the Ape and obstacle. All three cell-axis transforms now use the same signed quarter-turn convention as the cube pieces; the supplied `U` Interior placement is covered by a direction-sensitive deterministic check.
-
-- React Interior visual-parity pass (2026-07-18): ported the legacy `app.js` chamber composition into the isolated React candidate without changing the live `index.html` boundary. The React room now uses the legacy-scale 4 x 4 colored planes, fixed Front/Right/Top cutaway, derived opposite-face colors, rotating visible door face with a genuine missing wall cell and gold threshold, full-cell colored corner obstacle, legacy-scale voxel Ape materials, fuller 64-resolution banana, matching isometric framing, and interior-only fill light. The prescribed Playwright client entered Interior mode and exercised ArrowRight then ArrowDown; `agent-files/output/react-interior-port-verified/shot-0.png` was visually compared with `agent-files/output/legacy-interior-reference/shot-0.png`. The final React run produced no console-error artifact, and `npm.cmd run build` passed after stopping the dev server that held the esbuild helper.
-
-- React level-editor door-axis fix (2026-07-18): door coordinates now use the ordered third color/distance pair as the authoritative face axis. `g,y,o,3,0,0` validates as an Orange-face door at canonical cell `(3,0,0)`; the first two distances may be boundary values without being misclassified as extra door faces. Door traversal and rendering consume the explicit face/axis metadata, and the editor explains that the third distance must be zero. Paired traversal now lands on the target door rather than reusing the source cell: Orange `(3,0,0)` crosses to Red `(3,0,3)` and returns. Deterministic validation/round-trip checks and the production build pass. The required Playwright capture `agent-files/output/react-door-axis-final/shot-0.png` was visually inspected at original resolution: the opening is on the Orange wall's bottom row at the Green-distance-3 end, and no console/page error artifact was produced.
-
-- React face-drag direction fix (2026-07-18): traced left/right and up/down moving the same way to the React gesture setup applying pointer direction twice: once while choosing the base move and again when converting signed pointer distance into preview angle. Gesture setup now chooses orientation from the positive screen direction, matching the proven `app.js` path, and leaves direction reversal solely to signed drag distance. Focused real-pointer checks on the same front sticker confirmed visibly opposite previews for left/right and up/down; all four settled cleanly with no console or page errors. Inspected `agent-files/output/react-drag-direction/{left,right,up,down}-preview.png`. Per the repository workflow, no production build was run for this focused UI-only fix.
-
-- React active-highlight refinement (2026-07-18): traced the wireframe-heavy selection to a second oversized rounded glow line on every exposed face. Removed that duplicate contour, strengthened the single solid yellow border, and widened/softened its bloom to better match the legacy CSS border-plus-box-shadow treatment. The required focused Playwright capture (`agent-files/output/react-highlight-fix/shot-0.png`) was visually inspected at original resolution: the duplicate wireframe is gone, the selected face has one substantial gold silhouette with a broad soft halo, and no console/page error artifact was produced. Per the repository workflow, no production build was run for this focused UI iteration.
-
-- React sticker-edge antialiasing follow-up (2026-07-18): traced the jagged rounded sticker and inset lines to `EffectComposer` rendering through a non-multisampled off-screen target, which bypassed the WebGL canvas antialiasing setting. The composer now uses a 4-sample half-float render target before bloom so ordinary sticker edges retain the softer legacy CSS treatment without changing palette or geometry. The required focused Playwright capture (`agent-files/output/react-antialias/shot-0.png`) was visually inspected at original resolution: rounded silhouettes and inset lines are smooth, bloom remains confined to the active piece, and no console/page error artifact was produced. Per the repository workflow, no production build was run for this ordinary UI-only iteration.
-
-- React face-turn crash fix (2026-07-17): a valid short face drag snaps back to zero rather than selecting a move. The turn completion path incorrectly passed that `null` move into `turnCube`, where `applyMove` called `endsWith` and React unmounted the scene; the apparent cube disappearance was therefore a component crash. The React gesture path now skips callbacks for snap-backs, the shell accepts only string turns, and the model defensively ignores non-string moves. A ResizeObserver null-host guard prevents a secondary teardown error. Focused standard Playwright snap-back capture and a direct committed sticker-drag capture both visibly retained the cube; the committed move had no page errors. `npm.cmd run build` passed.
-
-- React active-bloom pass (2026-07-17): added a narrowly thresholded Three.js `UnrealBloomPass` for the high-intensity yellow active-piece border. The legacy radial/linear background is now rendered in-scene so the post-processing output preserves the original backdrop. Bloom threshold excludes ordinary red/blue/white stickers; the focused preview capture was console-clean and visually inspected. `npm.cmd run build` passed.
-
-- React active-piece treatment pass (2026-07-17): replaced the thin yellow active outline with a thick rounded border, secondary outer glow line, and retained the same `1.12×` active-piece scale used by the live CSS cube. This makes the selected cubelet visibly extend beyond its neighbors instead of reading as a normal-sized sticker. Focused React preview capture was console-clean; `npm.cmd run build` passed.
-
-- React rounded-sticker pass (2026-07-17): replaced the sharp visible Three.js box faces with separate rounded `ShapeGeometry` sticker panels, preserving the CSS-equivalent color values. Rounded inset outlines and rounded active-piece borders now match the original sticker-card treatment; the cube core remains dark in the gaps. Raycasting now targets the rounded panels directly, and a focused real sticker drag completed with no console errors. `npm.cmd run build` passed.
-
-- React sticker-color calibration (2026-07-17): switched overview sticker materials from physically lit `MeshStandardMaterial` to CSS-equivalent unlit `MeshBasicMaterial`. Pixel sampling of the React capture now confirms its dominant red and blue are exactly the original app's `216,58,52` (`#d83a34`) and `36,111,229` (`#246fe5`), correcting the prior darkened `177,48,40` / `30,83,160` output. The focused Playwright capture remained console-clean and `npm.cmd run build` passed.
-
-- React overview parity pass (2026-07-17): aligned the non-production React preview with the live `app.js` cube composition: transparent WebGL canvas over the existing legacy gradient, legacy-sized overview camera, sticker inset lines, active-piece 1.12× scale and gold borders, and the same initial R/W/B camera framing. The React face-drag path now uses the exact legacy threshold, screen-size-scaled preview-angle formula, snap/flick bounds, release duration, cubic-bezier(.2,.78,.2,1) easing, and input lock during settle. Browser screenshots were compared for baseline and a real horizontal sticker drag; both implementations reached the same visible transformed arrangement, and no console errors were captured. `npm.cmd run build` passed. The remaining release-gate work is the focused per-face / center-drag and interior-flow parity checklist, not changing the live entry point.
-
-- React preview boundary (2026-07-17): added `react.html` as an isolated Vite development entry with its own `#root`, loading `src/main.js`; production `index.html` and its enforced `app.js` boundary remain unchanged. The active preview render path is `LegacyGameShell`; the older experimental editor markup is retained only as commented migration reference. Preview loading intentionally starts from the bundled primary level so a missing remote Supabase level cannot create a console error while validating rendering and input. `npm.cmd run build` passed. The required Playwright client entered Little mode, applied ArrowRight/ArrowDown, produced `agent-files/output/react-preview-clean/shot-0.png`, and produced no error artifact; the screenshot was visually inspected.
-
-- Fixed the web-game verification tooling gap: installed `playwright` locally in the repo and in the `develop-web-game` skill folder so the required absolute-path Playwright client resolves its dependency. Added `type=module` to the skill package metadata to remove Node's module-type warning. Verified the client against the local Vite app with a one-frame no-op action burst; `npm run build` passes.
-
-- Moved the Big/Little cube mode toggle to the bottom-left safe area for touch-sized mobile viewports; desktop remains centered at the bottom.
-
-- Added a touch-only directional pad in the live `index.html` / `app.js` interior view. The four large buttons call the same `movePlayer` path as the arrow keys, remain keyboard-accessible, respect safe-area insets, and only appear while Little cube (Interior) mode is active on touch/coarse-pointer devices.
-- Verified the pad in a 393 x 737 touch viewport: it is visible and clear of the mode button, and each direction moves the initial Ape position one matching logical cell. Inspected `touch-controls-mobile.png`; production build passes. The standard web-game Playwright client remains unavailable because its `playwright` package is not installed; browser-runtime verification used the local Chrome executable instead. The only console resource error is the pre-existing blocked Vercel Analytics debug-script request in the sandbox.
-
-- Door/obstacle follow-up: the live `app.js` now defines exactly two doors in Green/Orange/Yellow face-relative coordinates: R/W/B Orange `(3,0,0)` and W/B Red `(3,3,0)`. Their current wall cell and directional interaction are resolved from each cubelet's rotating interior-face map, and a transfer only occurs while both openings are physically touching. The sole obstacle remains attached to R/W/B even when another piece is active or R/W/B turns while inactive.
-
-- Interior visibility rule: Front, Right, and Up are permanent cutaway faces. Doors can still logically rotate onto them, but their wall panels are never rendered; only Back, Left, and Down may render a wall or doorway.
-
-- Renamed the game presentation to **Cubesque-Ape** and replaced the interior player cube with a compact voxel ape. Its measured footprint is 0.78 × 0.80 × 0.64 of a logical grid cell, so it remains wholly within one 1 × 1 × 1 cell.
-
-- Replaced per-face gesture conditionals with face-local right/up coordinate frames.
-- Added M, E, and S middle-slice moves to animation, command parsing, and controls.
-- Center sticker horizontal/vertical drags now choose different middle slices.
-- Added `render_game_to_text`, `advanceTime`, and a gesture inspection hook for automated testing.
-- Initial browser capture rendered correctly; added an inline favicon to remove the only console 404.
-- Verified all six faces' center horizontal/vertical mappings and their inverse drags.
-- Verified corrected relative directions for back vertical (`R`), left vertical (`F`), and top horizontal (`F'`).
-- Exercised real pointer drags on front, right, and top centers; results were E, M, and S slice turns as expected.
-- Verified `M E S S' E' M'` restores every cubelet position and that all six middle-slice buttons exist.
-- Browser console is clean; inspected baseline and center-ring turn screenshots.
-- Follow-up: reversed both horizontal and vertical middle-ring turns when dragging the white center sticker; other white stickers retain their face-relative directions.
-- Verified real white-center pointer drags: right produces `S`, down produces `M'`, reverse directions produce `S'`/`M`, and the outer white row still produces `F'`.
-- Inspected horizontal and vertical white-center screenshots; browser console remained clean.
-- Follow-up request: match iamthecu.be's continuous drag controls and release snapping.
-- Inspected the public Cuber interaction source: it locks an axis after a small movement, rotates the selected slice continuously with pointer distance, rounds to the nearest 90 degrees on release, and lets fast flicks advance in their direction.
-- Replaced threshold-triggered turns with a live slice preview, nearest-quarter snap/snap-back, distance-based release animation, and flick completion.
-- Matched Cuber's release-speed calculation to total drag distance over gesture duration rather than the last pointer event.
-- Removed the scene transform easing while empty-space dragging so cube view rotation stays directly under the pointer.
-- Browser-tested real pointer gestures: a 27.7-degree slow drag snapped back; a 55.5-degree slow drag committed `E`; a 35.7-degree fast flick also committed `E`; reverse committed `E'`; vertical center committed `M`; and an outer-row drag committed `U'`.
-- Verified empty-space dragging updates both view axes continuously, all completed gestures clear their preview/active state, final visuals render correctly, and the browser console remains clean.
-- Follow-up request: center and optimize the cube-only mobile layout from a supplied portrait screenshot.
-- Reproduced the issue at 393x737: the inherited desktop two-column stage grid placed the 393px hero inside a 93px first column, shifting the hero and cube 150px left.
-- Reset the mobile stage to a single-column/single-row grid and explicitly placed the hero in that cell.
-- Added a stylesheet cache key so the corrected responsive rules replace previously cached mobile CSS immediately.
-- Verified portrait layouts at 393x737 and 360x640: hero left edge is 0, visual cube centers are 194.9/196.5px and 180.1/180px respectively, screenshots are centered, and console errors are empty.
-- Ran the standard web-game regression capture at desktop size; layout, cube state, and desktop presentation remain unchanged.
+- The public game is a dynamically loaded no-SSR client island because its Three.js renderer and tutorial initializer require browser APIs.
+- The existing local Supabase values were migrated to `.env.local` with `NEXT_PUBLIC_` names; the file remains gitignored.
+- `npm audit --omit=dev` currently reports three upstream high-severity findings through Next.js 16.2.11 (`postcss` and `sharp`). npm offers no safe current-version fix and incorrectly suggests downgrading Next.js to 9.3.3, so no forced audit mutation was applied.
+- The original `cube-game` Vite project remains untouched for comparison and rollback.
 
 ## TODO
 
-- React world-interaction parity (2026-07-20): corrected the model pickup test to resolve a Golden Banana through its owning piece's current face orientation, so it remains collectible after that cubelet turns. Door transfers now require transformed opposing faces and adjacent piece positions, matching the live physical-contact rule; post-victory movement is inert. Added `scripts/check-react-world-interactions.mjs` to cover initial transfer, separated-door refusal, rotated-banana collection, and victory input lock; it passes alongside the existing U-turn attachment check. The focused React Interior browser capture at `agent-files/output/react-world-interactions/interior/shot-0.png` was visually inspected (banana visible) and has no console-error artifact.
-
-- Corrective migration boundary (2026-07-17): restored `index.html` to the proven `app.js` DOM/CSS game shell and returned the pre-build guard to `app.js`. `src/main.js` is retained as a non-production React/Three replacement candidate. Its required controls/debug, gesture, world-attachment, visual, and release verification is now explicit in `docs/react-parity-checklist.md`; do not change the live entry until that checklist is complete.
-- Verification for the corrective boundary: `npm.cmd run build` passed with the restored entry guard. Focused Playwright captures of the live Vite page showed the cube overview and Little cube interior with no captured console errors. ArrowRight then ArrowDown moved the Ape from `(1,0,1)` to `(2,0,2)` and retained `Yellow (world -Y)` gravity in `render_game_to_text()`; inspected `agent-files/output/restored-entry-initial/shot-0.png`, `agent-files/output/restored-entry-interior/shot-0.png`, and `agent-files/output/restored-entry-move/shot-0.png`.
-
-- Follow-up: removed the retired developer-console surface from both implementations. `app.js` no longer exposes `window.cube`, `window.render_game_to_text`, or stale Explorer toolbar listeners; its dead shuffle command-input assignment is gone. The React candidate no longer creates command/debug globals or the unreachable command panel. Production build passes; the focused browser regression entered Little cube and moved the Ape with the original arrow-key path. Inspected `agent-files/output/no-console-regression/shot-0.png`; no browser error artifact was produced.
-
-- React direct-manipulation pass: sticker raycasts now distinguish face/slice drags from empty-space orbiting. Gesture choice uses face-local frames, including center-ring M/E/S selection, previews the affected 3×3 slice continuously, then snaps or completes a fast flick through the deterministic engine. The production debug surface now includes `window.cube.twist`, `window.cube.inspect`, and `window.cube.gesture`. `npm.cmd run build` passes; a real browser drag on the front sticker committed `U'`, moved the active player cell as expected, and rendered cleanly.
-
-- Restored the retained legacy visual language in the React production shell: full-screen stage, brand, gear/settings modal, suit cards, Little/Big cube control, touch movement pad, victory modal, plus the original voxel Ape generators and voxel banana. Corrected React Interior mode to hide all overview cubelets and focus the active chamber. Production build passes; inspected Cube and Interior captures.
-
-- Follow-up: configured `.env.local` values were verified by a read-only Supabase Auth settings request (HTTP 200). Added the documented React magic-link flow: local claim validation, token-hash callback verification, auth-state subscription, email-link sign-in, and sign-out. Production build passes.
-
-- Migrated the live entry point from legacy `app.js` to React/Three.js `src/main.js`; the prebuild check now enforces that boundary.
-- Added a serializable Primary World level model: all 27 color-named modules, a required one-and-only spawn, and validated 6-value face-relative coordinates. Doors are intentionally restricted to exactly one face (not an edge/corner).
-- Added the React level editor for module selection and obstacle / golden banana / door / spawn placement. Drafts save in localStorage until Supabase is configured.
-- Added a Supabase RLS migration for `levels`, `level_modules`, and `level_items`, plus a client using Vite public URL/publishable-key environment variables. Build and deterministic validation passed. Browser verification was attempted but the sandbox would not retain a background Vite listener.
-
-- Added a voxel golden banana collectible in the live `app.js` interior at G/O/Y `(0,0,1)`, the cell directly above the R/W/B corner obstacle. It rotates with the obstacle's cubelet, triggers a modal level-complete state when the Ape enters its cell, and Continue reloads the default game state. The banana now uses 1/64-cell voxels, matching the Ape's 64³ model resolution; its fruit cross-section is a visibly fuller 15-voxel diameter.
-
-- Solid corner-cell follow-up: the Green/Orange/Yellow `(0,0,0)` chamber cell is now a rotating collision block. A turn settles the player on its raised floor; lateral moves may drop but do not climb it yet. `F'` from `(3,0,0)` deterministically yields `(3,0,1)` relative to White/Orange/Green; moving laterally from the raised tile drops to y=0. Build passed. Browser check showed the colored G/O/Y corner block, blocked attempted climb, and no console errors.
-- Fixed the hanging-solid follow-up: collision floors are now height-aware. A solid at `(0,3,0)` no longer blocks floor-level movement from `(1,0,0)` to `(0,0,0)`, while a solid at `(0,0,0)` still blocks that move. The prior F' raised-floor and lateral-drop cases remain covered by a deterministic check; build and browser visual check passed with no console errors.
-
-## Engine foundation (current)
-
-- Replaced the legacy static explorer entry point with a Vite React + Three.js project.
-- Added a model-first `src/engine.js` with a 4 x 4 interior grid, R/W/B active-piece definition, bounded arrow-key movement, and immutable Yellow/world-down gravity.
-- Added a Three.js isometric scene with all 27 cube pieces, a zoomed R/W/B hollow chamber view, internal floor grid/walls, player cube, and pointer orbit in Cube mode.
-- Added Vercel-safe static configuration and package scripts for `npm run dev` / `npm run build`.
-- Focused browser verification: entering the chamber then pressing ArrowRight moves player `(1,0,1)` to `(2,0,1)` while reported gravity remains `Yellow (world -Y)`.
-- Restored the original explorer's charcoal/teal UI and sticker palette. Corrected the player render coordinate to `gridStart + (cellIndex + 0.5) * cellSize`, centering it within each tile rather than on a grid intersection.
-- Visual-reference follow-up: inspected `origin/main` and copied its exact sticker mapping: Front Red, Back Orange, Right Blue, Left Green, Up White, Down Yellow. The default view shows its Green / Orange / White back-left-top corner. Sticker materials are brightened slightly so their original hues survive scene lighting.
-- Added original Rubik's Cube outer-face turns in Cube mode: U/D/L/R/F/B plus inverse controls. Logical cubelets now carry both integer positions and sticker orientation, so turns update game state deterministically. Verified a face control records `R` and four `R` turns restore the solved state exactly.
-- Cube-mode parity pass against `origin/main`: added its `cube.twist(...)` command workflow, all middle-slice M/E/S moves and inverses, grid/glass material control, undo, shuffle, and reset. Browser checks confirm the 18 face/center controls and default command sequence execute; engine checks confirm command parsing and undo.
-
-## TODO
-
-- Mini chamber is now a camera-facing cutaway: world front, right, and top planes (including their grids) are transparent. It displays the relative bottom, back, and left interior faces, using a full six-face orientation map that rotates with the active R/W/B cubelet.
-- Fixed mini-chamber face colors after a visual check: live cubelet stickers are stored as face names (such as `right`), so the renderer now maps those names explicitly to palette colors (Blue) before applying materials.
-- Mini-chamber orientation now refreshes after every completed face, middle-slice, inverse, double, or face-drag turn in the live `app.js` entry point. All six planes are colored from R/W/B's current world-facing sticker map; Yellow remains only the initial un-stickered world-down fallback.
-- Active chamber floor now derives from the R/W/B cubelet's current world-down sticker in the production explorer. World gravity remains immutable Yellow/world -Y, so the chamber floor correctly becomes Blue when Blue points down after cube turns.
-- Corrected clockwise Front turn handedness: `F` now sends R/W/B to bottom/front/right with White on right, Red on front, and Blue on the world-down floor. The chamber now follows that piece's transformed slot and renders its current world-down sticker as the floor, while player x/z remain fixed on the world Blue/Green and Red/Orange axes.
-- Verified the Front result and its inverse with a deterministic engine check, including preserved player x/z. `npm.cmd run build` passes; the local Vite response is HTTP 200. Visual browser capture was unavailable because the installed browser client is version-mismatched and the fallback package cannot write to the system npm cache in this sandbox.
-- Fixed the missing visual follow-through in Interior mode: its camera now orbits the transformed active R/W/B chamber rather than the original cube origin.
-- Exposed the live explorer's world-cell description: the player grid stays world-aligned through a turn, so after `U` the initial cell reports the Yellow face, two cells from Red, and one from Green. A focused browser run of `window.cube.twist("U")` then Interior mode showed the stationary player and R/W/B at `(-1, 1, 1)` with Red-left/Blue-front/White-up; no console errors.
-- Corrected the U-turn follow-through: when a completed turn includes R/W/B, its interior player cell rotates with the cubelet. The initial U turn now moves the player from `(1, 1)` to `(2, 1)` on the Yellow grid; this is covered for button/command turns and completed face drags. Browser verification showed the visible move and no console errors.
-- Expanded the live player state to a 4 x 4 x 4 world cell (64 positions). Completed turns rotate all three axes of that cell, then settle its y coordinate to world-down. Verified the requested Front result: `Green/Orange/Yellow (1,1,0)` becomes `Yellow/Orange/Blue (0,1,0)` on a Blue floor. Axis checks for U, R, and F all settle to y=0 without console errors.
-- Add real Rubik's whole-cube quarter-turn logic and use it to re-settle the player after a physical rotation.
-- Convert new engine files to TypeScript when the next gameplay feature warrants the migration.
-- Complete remaining original Cube Explorer parity: direct sticker drag with continuous preview/snap, labels, cubelet filters, and auto-orbit/realign camera actions.
-
-- Added a deterministic paired Orange/Red doorway between R/W/B and the W/B middle cubelet. ArrowUp from (3,0,0) switches activePieceId to W/B at (3,0,3); ArrowDown returns. Yellow gravity remains world -Y. Engine round-trip check and build passed.
-
-- Correction: W/B middle has no Yellow sticker; its floor material reports core while gravity still remains Yellow/world -Y. The paired door engine round-trip passed after checking gravity rather than sticker color.
-
-- Door verification: deterministic engine round-trip passes (Orange threshold to W/B and Red threshold back), Yellow gravity unchanged; npm.cmd run build passes. The prescribed Playwright client could not run because the workspace does not provide the playwright package, so no browser screenshot was produced.
-
-- Follow-up verification: cube turns now look up the dynamic activePieceId, so post-door rotations settle/rotate the currently active W/B chamber rather than the original R/W/B piece. Focused door-plus-turn check and production build passed.
-
-- Replaced the door's painted dark inset with a real missing wall-cell mesh and a thin gold threshold for visibility; build passes. Playwright remains unavailable in this workspace.
-
-- Screenshot diagnosis: index.html runs app.js, not src/main.js. Added the real Orange-wall doorway to app.js as a missing floor-level panel at (3,0,0), framed in gold for visibility. Build passed.
-
-- Also moved the actual live app's active-piece state from a hard-coded R/W/B index to activePieceIndex. The Orange threshold now changes the live app to W/B middle (and the Red threshold returns); turn handling follows the dynamic active piece. Build passed.
-
-- Added an overview-active treatment to the live cube: active cubelet is 12% larger with thick gold sticker borders and glow. Highlight refreshes when crossing the door; production build passed.
-
-- Added the live W/B Red door renderer: after U rotates Red to the right wall, a segmented red wall replaces the cutaway and omits local (0,3,0), with a gold outline. Build passed; Playwright unavailable.
+- Decide when to retire or archive the sibling Vite project after production acceptance.
+- Recheck the upstream Next.js/PostCSS/Sharp advisories when patched package releases are available.

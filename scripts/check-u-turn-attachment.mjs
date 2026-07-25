@@ -1,4 +1,4 @@
-import { createGameState, turnCube } from "../src/engine.js";
+import { createGameState, turnCube } from "../src/game/engine.js";
 
 const state = {
   ...createGameState(),
