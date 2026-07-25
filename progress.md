@@ -2,7 +2,7 @@ Original prompt: I'm missing the ability to move the center rings, also some of 
 
 ## Progress
 
-- Private editor boundary (2026-07-24): moved level editing to lazy TypeScript modules at `/editor`. The public game no longer renders auth, save, or editor controls. The route verifies a Supabase session before importing the editor and exposes existing-user email/password sign-in only. Added a Vercel deep-link rewrite, strict TypeScript check, and manual single-user provisioning notes. Pre-commit review removed an incorrect sign-in password-length constraint, ensured the editor workspace scrolls inside the fixed game shell, and handles sign-out failures. Production build and focused in-app browser checks pass; Playwright was not run per repository instruction.
+- Private editor boundary (2026-07-24): moved level editing to lazy TypeScript modules at `/editor`. The public game no longer renders auth, save, or editor controls. The route verifies a Supabase session before importing the editor and exposes existing-user email/password sign-in only. Added explicit Vercel rewrites for both bare `/editor` and nested editor paths, strict TypeScript checks, and manual single-user provisioning notes. Pre-commit review removed an incorrect sign-in password-length constraint, ensured the editor workspace scrolls inside the fixed game shell, and handles sign-out failures. Production build and focused in-app browser checks pass; Playwright was not run per repository instruction.
 
 - Pre-PR code review (2026-07-23): reviewed the complete four-commit branch
   against current `origin/main`. Removed the stale `/react.html` preview guard

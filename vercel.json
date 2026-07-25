@@ -1,6 +1,8 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": true,
   "rewrites": [
+    { "source": "/editor", "destination": "/index.html" },
     { "source": "/editor/:path*", "destination": "/index.html" }
   ],
   "headers": [
