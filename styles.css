@@ -1281,6 +1281,40 @@ body.little-mode .scene-shell { opacity: 0; pointer-events: none; }
   margin-bottom: 12px;
 }
 
+.settings-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.settings-actions button,
+.settings-editor-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+}
+
+.settings-actions button:hover,
+.settings-actions button:focus-visible,
+.settings-editor-link:hover,
+.settings-editor-link:focus-visible {
+  border-color: var(--accent);
+  background: rgba(67, 217, 184, 0.08);
+  outline: none;
+}
+
 /* Skin Selector Cards List */
 .skin-cards-list {
   display: flex;

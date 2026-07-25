@@ -2,6 +2,8 @@ Original prompt: I'm missing the ability to move the center rings, also some of 
 
 ## Progress
 
+- Settings editor link (2026-07-24): added a Level editor link to the public game's Settings panel. It navigates to `/editor`; the destination remains protected by the existing Supabase session gate and exposes sign-in only. The production build passes; Playwright was not run per repository instruction.
+
 - Private editor boundary (2026-07-24): moved level editing to lazy TypeScript modules at `/editor`. The public game no longer renders auth, save, or editor controls. The route verifies a Supabase session before importing the editor and exposes existing-user email/password sign-in only. Added explicit Vercel rewrites for both bare `/editor` and nested editor paths; their destination is `/` because `cleanUrls` canonicalizes `/index.html`. Added strict TypeScript checks and manual single-user provisioning notes. Pre-commit review removed an incorrect sign-in password-length constraint, ensured the editor workspace scrolls inside the fixed game shell, and handles sign-out failures. Production build and focused in-app browser checks pass; Playwright was not run per repository instruction.
 
 - Pre-PR code review (2026-07-23): reviewed the complete four-commit branch
