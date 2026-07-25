@@ -8,6 +8,8 @@
 # testing
 /coverage
 /agent-files/
+/.codex-remote-attachments/
+/.npm-cache/
 
 # database
 /prisma/db.sqlite
@@ -21,6 +23,7 @@ next-env.d.ts
 
 # production
 /build
+/dist/
 
 # misc
 .DS_Store
