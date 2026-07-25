@@ -1,6 +1,7 @@
 # Cubesque-Ape — Next.js port
 
-This is the Create T3 App / Next.js App Router port of the Vite game in the sibling `cube-game` directory.
+This is the Create T3 App / Next.js App Router version of Cubesque-Ape. The
+pre-migration Vite application remains recoverable from the `vite-final` tag.
 
 ## Stack
 
@@ -31,5 +32,6 @@ Without Supabase configuration, the public game uses its local primary level and
 
 ```bash
 npm run check
+npm run test:engine
 npm run build
 ```

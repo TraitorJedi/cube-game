@@ -36,9 +36,12 @@ Cubesque-Ape remains a full-viewport charcoal isometric puzzle stage with bright
 - The public game is a dynamically loaded no-SSR client island because its Three.js renderer and tutorial initializer require browser APIs.
 - The existing local Supabase values were migrated to `.env.local` with `NEXT_PUBLIC_` names; the file remains gitignored.
 - `npm audit --omit=dev` currently reports three upstream high-severity findings through Next.js 16.2.11 (`postcss` and `sharp`). npm offers no safe current-version fix and incorrectly suggests downgrading Next.js to 9.3.3, so no forced audit mutation was applied.
-- The original `cube-game` Vite project remains untouched for comparison and rollback.
+- The original Vite implementation is preserved by the `vite-final` tag and
+  baseline commit documented in `docs/migrations/2026-07-nextjs-t3.md`.
+- The migration worktree retires the Vite HTML entries and duplicate source
+  tree in a separate commit after the Next.js application lands.
 
 ## TODO
 
-- Decide when to retire or archive the sibling Vite project after production acceptance.
+- Validate a deployment preview before merging the migration branch.
 - Recheck the upstream Next.js/PostCSS/Sharp advisories when patched package releases are available.

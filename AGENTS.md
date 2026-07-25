@@ -2,7 +2,7 @@
 
 ## Product direction
 
-Evolve this repository into a browser-first isometric puzzle-game engine, initially built around a playable Rubik's Cube level and later extended into a level editor. Preserve the existing cube explorer as useful reference/interaction code until its behavior has been intentionally replaced.
+Evolve this repository into a browser-first isometric puzzle-game engine, initially built around a playable Rubik's Cube level and later extended into a level editor. The former Vite implementation is preserved in Git at the `vite-final` tag; do not restore its entrypoints into the live application.
 
 The production stack is **React + Three.js** (prefer `@react-three/fiber` and `@react-three/drei` when they reduce custom glue code). The app must be compatible with a standard Vercel deployment: static/client rendering by default, no required long-running server, no Node-only browser paths, and environment variables only when genuinely needed.
 
@@ -19,11 +19,15 @@ The production stack is **React + Three.js** (prefer `@react-three/fiber` and `@
 - **Golden Banana:** A collectible rendered as a voxel model within one Interior Grid cell. Collecting it puts the game into the **Victory / Level Complete** state; Continue resets the current level to its default state.
 - **Voxel resolution:** Every `1 × 1 × 1` Interior Grid cell supports voxel models at up to `64 × 64 × 64` resolution. The Ape and Golden Banana use `1/64`-cell voxels.
 
-## Live entry point
+## Live entry points
 
-`index.html` loads the production React/Three entry at `src/main.js`. The
-preserved DOM/CSS implementation lives at `/legacy` and is useful as behavior
-reference code. The pre-build entry-point check enforces both route boundaries.
+- `src/app/page.tsx` serves the public game at `/`.
+- `src/app/game-client.tsx` establishes the no-SSR client boundary required by
+  Three.js and browser-only game APIs.
+- `src/app/editor/page.tsx` serves the private level editor at `/editor`.
+
+The Vite HTML entries and `/legacy` route are retired. Use the `vite-final` tag
+when historical behavior must be inspected.
 
 ## Core world rules
 
@@ -73,7 +77,10 @@ Optimize for evidence, not exhaustive ceremony. Run the smallest relevant check 
 
 Do not run Playwright tests or Playwright-driven browser checks unless the user explicitly requests them.
 
-For ordinary UI iterations, use the Vite development server and focused browser checks; do not run `npm run build` just to refresh a browser capture. Reserve production builds for build/config/deployment changes and the final verification handoff.
+For ordinary UI iterations, use the Next.js development server and focused
+browser checks; do not run `npm run build` just to refresh a browser capture.
+Reserve production builds for build/config/deployment changes and the final
+verification handoff.
 
 Store agent-generated screenshots, browser captures, debug logs, and one-off verification artifacts under `agent-files/` (use `agent-files/output/` for grouped runs), not in the repository root or a root-level `output/` directory.
 
