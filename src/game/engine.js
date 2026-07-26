@@ -58,24 +58,63 @@ function rotateVector(vector, axis, angle) {
   return angle === 90 ? { x: -y, y: x, z } : { x: y, y: -x, z };
 }
 
-function createPiece(x, y, z) {
+function createPiece(x, y, z, id = moduleId({ x, y, z }), colors = null) {
   const stickers = {};
-  if (z === 1) stickers.front = FACE_COLORS.front;
-  if (z === -1) stickers.back = FACE_COLORS.back;
-  if (x === 1) stickers.right = FACE_COLORS.right;
-  if (x === -1) stickers.left = FACE_COLORS.left;
-  if (y === 1) stickers.up = FACE_COLORS.up;
-  if (y === -1) stickers.down = FACE_COLORS.down;
+  const visible = colors ? new Set(colors) : null;
+  if (!visible || visible.has("red")) if (z === 1 || visible) stickers.front = FACE_COLORS.front;
+  if (!visible || visible.has("orange")) if (z === -1 || visible) stickers.back = FACE_COLORS.back;
+  if (!visible || visible.has("blue")) if (x === 1 || visible) stickers.right = FACE_COLORS.right;
+  if (!visible || visible.has("green")) if (x === -1 || visible) stickers.left = FACE_COLORS.left;
+  if (!visible || visible.has("white")) if (y === 1 || visible) stickers.up = FACE_COLORS.up;
+  if (!visible || visible.has("yellow")) if (y === -1 || visible) stickers.down = FACE_COLORS.down;
   // `stickers` only describes the visible exterior.  Chambers need the full
   // colour frame as well: a middle piece has no red sticker, for example,
   // but it still has a red interior-facing direction which must turn with it.
-  return { id: moduleId({ x, y, z }), position: { x, y, z }, stickers, faceColors: { ...FACE_COLORS } };
+  return { id, position: { x, y, z }, stickers, faceColors: { ...FACE_COLORS } };
 }
 
-export function createRubiksCube() {
+export function createRubiksCube(level) {
+  if (level?.modules?.length) {
+    return level.modules.map((piece) => createPiece(
+      piece.position.x,
+      piece.position.y,
+      piece.position.z,
+      piece.id,
+      piece.colors,
+    ));
+  }
   const pieces = [];
   for (let x = -1; x <= 1; x++) for (let y = -1; y <= 1; y++) for (let z = -1; z <= 1; z++) pieces.push(createPiece(x, y, z));
   return pieces;
+}
+
+function selectorMatches(piece, selector) {
+  if (selector?.type === "pieces") return selector.pieceIds.includes(piece.id);
+  return selector?.type === "layer" && piece.position[selector.axis] === selector.coordinate;
+}
+
+function applyRotationConfig(pieces, rule, direction = 1) {
+  const angle = rule.angle * direction;
+  const pivot = rule.scenePivot;
+  return pieces.map((piece) => {
+    if (!selectorMatches(piece, rule.sceneSelector)) return piece;
+    const offset = {
+      x: piece.position.x - pivot.x,
+      y: piece.position.y - pivot.y,
+      z: piece.position.z - pivot.z,
+    };
+    const turned = rotateVector(offset, rule.sceneAxis, angle);
+    const position = {
+      x: Math.round((turned.x + pivot.x) * 1e9) / 1e9,
+      y: Math.round((turned.y + pivot.y) * 1e9) / 1e9,
+      z: Math.round((turned.z + pivot.z) * 1e9) / 1e9,
+    };
+    const rotateFaces = (faces) => Object.fromEntries(Object.entries(faces).map(([face, color]) => [
+      vectorToFace(rotateVector(FACE_VECTORS[face], rule.sceneAxis, angle)),
+      color,
+    ]));
+    return { ...piece, position, stickers: rotateFaces(piece.stickers), faceColors: rotateFaces(piece.faceColors ?? FACE_COLORS) };
+  });
 }
 
 export function applyMove(pieces, move) {
@@ -97,7 +136,7 @@ export function createGameState(level = createPrimaryLevel()) {
   const spawn = level.items.find((item) => item.kind === "spawn");
   const obstacle = level.items.find((item) => item.kind === "obstacle");
   return {
-    mode: "cube", cube: createRubiksCube(), level, moves: [], history: [], material: "grid", activePieceId: spawn?.moduleId ?? ACTIVE_PIECE.id,
+    mode: "cube", cube: createRubiksCube(level), level, rotationRules: level.rotationRules ?? [], moves: [], history: [], material: "grid", activePieceId: spawn?.moduleId ?? level.modules?.[0]?.id ?? ACTIVE_PIECE.id,
     // These are world-horizontal grid coordinates: x is Blue/Green (right/left)
     // and z is Red/Orange (front/back). They do not rotate with the camera.
     // y is always settled to the active chamber's world-down interior face.
@@ -169,6 +208,33 @@ function doorwaysTouch(sourceDoor, sourcePiece, targetDoor, targetPiece) {
 }
 
 export function turnCube(state, move) {
+  const ruleId = typeof move === "string" ? move.replace(/[2']/g, "") : move?.ruleId;
+  const customRule = state.rotationRules?.find((rule) => rule.id === ruleId);
+  if (customRule) {
+    const direction = typeof move === "object" ? (move.direction ?? 1) : move.endsWith("'") ? -1 : 1;
+    const turns = typeof move === "object" ? (move.turns ?? 1) : move.endsWith("2") ? 2 : 1;
+    let cube = state.cube;
+    let player = state.player;
+    const active = getActivePiece(state.cube, state.activePieceId);
+    const activeTurns = active && selectorMatches(active, customRule.sceneSelector);
+    for (let turn = 0; turn < turns; turn += 1) {
+      cube = applyRotationConfig(cube, customRule, direction);
+      if (activeTurns) player = rotateInteriorCell(player, customRule.sceneAxis, customRule.angle * direction);
+    }
+    const activeAfter = getActivePiece(cube, state.activePieceId);
+    const obstacles = state.level.items
+      .filter((item) => item.kind === "obstacle" && item.moduleId === state.activePieceId)
+      .map((item) => resolveItemCell(item, activeAfter));
+    if (activeTurns) player = settlePlayer(player, obstacles);
+    const notation = `${customRule.id}${turns === 2 ? "2" : direction === -1 ? "'" : ""}`;
+    return {
+      ...state,
+      cube,
+      player,
+      moves: [...state.moves, notation].slice(-16),
+      history: [...state.history, { ruleId: customRule.id, direction, turns }],
+    };
+  }
   const cube = applyMove(state.cube, move);
   const config = MOVE_CONFIG[move.replace(/[2']/g, "")];
   const active = getActivePiece(state.cube, state.activePieceId);
@@ -195,6 +261,14 @@ export function parseMoves(input) {
 export function undoCube(state) {
   const last = state.history.at(-1);
   if (!last) return state;
+  if (typeof last === "object") {
+    const next = turnCube({ ...state, history: state.history.slice(0, -1) }, {
+      ruleId: last.ruleId,
+      direction: -last.direction,
+      turns: last.turns,
+    });
+    return { ...next, history: state.history.slice(0, -1) };
+  }
   const inverse = last.endsWith("2") ? last : last.endsWith("'") ? last.slice(0, -1) : `${last}'`;
   return { ...state, cube: applyMove(state.cube, inverse), player: settlePlayer(state.player), history: state.history.slice(0, -1), moves: [...state.moves, inverse].slice(-16) };
 }
@@ -224,14 +298,24 @@ export function movePlayerInWorld(state, key) {
     const face = faceForColor(sourcePiece, candidate.doorFace);
     return doorMovementKeyForFace(face) === key && cell.x === state.player.x && cell.y === state.player.y && cell.z === state.player.z;
   });
-  const targetDoor = door && (state.level?.items ?? []).filter((item) => item.kind === "door").map(parseDoor).find((candidate) => candidate.moduleId === door.targetModuleId && candidate.targetModuleId === door.moduleId);
+  const targetDoor = door && (state.level?.items ?? [])
+    .filter((item) => item.kind === "door" && item.moduleId !== state.activePieceId)
+    .map(parseDoor)
+    .find((candidate) => {
+      const candidatePiece = getActivePiece(state.cube, candidate.moduleId);
+      if (!candidatePiece || !doorwaysTouch(door, sourcePiece, candidate, candidatePiece)) return false;
+      const sourceCell = resolveItemCell(door, sourcePiece);
+      const targetCell = resolveItemCell(candidate, candidatePiece);
+      return ["x", "y", "z"].every((axis) => axis === door.doorAxis || sourceCell[axis] === targetCell[axis]);
+    });
   const targetPiece = targetDoor && getActivePiece(state.cube, targetDoor.moduleId);
-  const canTraverseDoor = door && targetDoor && sourcePiece && targetPiece
-    && doorwaysTouch(door, sourcePiece, targetDoor, targetPiece);
-  const activeHasObstacle = state.level?.items.some((item) => item.kind === "obstacle" && item.moduleId === state.activePieceId);
+  const canTraverseDoor = door && targetDoor && sourcePiece && targetPiece;
+  const activeObstacles = (state.level?.items ?? [])
+    .filter((item) => item.kind === "obstacle" && item.moduleId === state.activePieceId)
+    .map((item) => resolveItemCell(item, sourcePiece));
   const next = canTraverseDoor
-    ? { ...state, activePieceId: door.targetModuleId, player: resolveItemCell(targetDoor, targetPiece) }
-    : { ...state, player: movePlayer(state.player, key, activeHasObstacle ? state.solidCell : null) };
+    ? { ...state, activePieceId: targetDoor.moduleId, player: resolveItemCell(targetDoor, targetPiece) }
+    : { ...state, player: movePlayer(state.player, key, activeObstacles) };
   const activePiece = getActivePiece(next.cube, next.activePieceId);
   const banana = next.level.items.find((item) => {
     if (item.kind !== "golden_banana" || item.moduleId !== next.activePieceId) return false;
@@ -259,11 +343,15 @@ function rotateInteriorCell(cell, axis, angle) {
 }
 
 export function isSolidAt(x, y, z, solidCell = INITIAL_SOLID_CELL) {
-  return Boolean(solidCell) && solidCell.x === x && solidCell.y === y && solidCell.z === z;
+  const solids = Array.isArray(solidCell) ? solidCell : solidCell ? [solidCell] : [];
+  return solids.some((cell) => cell.x === x && cell.y === y && cell.z === z);
 }
 
 export function floorHeightAt(x, z, solidCell = INITIAL_SOLID_CELL, fallingFromY = GRID_SIZE - 1) {
-  return solidCell && solidCell.x === x && solidCell.z === z && solidCell.y <= fallingFromY ? solidCell.y + 1 : 0;
+  const solids = Array.isArray(solidCell) ? solidCell : solidCell ? [solidCell] : [];
+  return solids
+    .filter((cell) => cell.x === x && cell.z === z && cell.y <= fallingFromY)
+    .reduce((floor, cell) => Math.max(floor, cell.y + 1), 0);
 }
 
 export function settlePlayer(player, solidCell = INITIAL_SOLID_CELL) { return { ...player, y: floorHeightAt(player.x, player.z, solidCell, player.y) }; }

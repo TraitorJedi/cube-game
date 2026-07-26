@@ -6,7 +6,7 @@ import { Geist } from "next/font/google";
 
 export const metadata: Metadata = {
   title: "Cubesque-Ape",
-  description: "An isometric Rubik's Cube puzzle world.",
+  description: "An isometric puzzle world.",
   icons: [{ rel: "icon", url: "data:," }],
 };
 

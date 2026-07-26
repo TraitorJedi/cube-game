@@ -9,7 +9,8 @@ pre-migration Vite application remains recoverable from the `vite-final` tag.
 - React + Three.js
 - TypeScript for route/editor code, with the established deterministic game engine retained in JavaScript during the framework migration
 - Tailwind CSS plus the preserved game stylesheet
-- Supabase for the optional private level editor
+- Supabase for immutable level versions, creator ownership, and the published
+  Default level
 
 ## Local development
 
@@ -17,7 +18,9 @@ pre-migration Vite application remains recoverable from the `vite-final` tag.
 npm run dev
 ```
 
-Open `http://localhost:3000` for the game and `http://localhost:3000/editor` for the private editor.
+Open `http://localhost:3000` for the game, `http://localhost:3000/editor` for
+the private editor, and `http://localhost:3000/admin` for Default-level
+publishing.
 
 Copy `.env.example` to `.env.local` and populate these values when the editor should use Supabase:
 
@@ -26,7 +29,32 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 ```
 
-Without Supabase configuration, the public game uses its local primary level and the editor displays a configuration-required state.
+Without Supabase configuration, the public game uses the bundled Tutorial
+fallback and the editor displays a configuration-required state.
+
+## Level engine
+
+Level versions are complete JSON documents. World Pieces use integer
+coordinates with this fixed logical frame:
+
+- `x`: Orange (-) to Red (+)
+- `y`: Green (-) to Blue (+)
+- `z`: Yellow (-) to White (+); gravity is always `-z`
+
+Interior cells are `[x,y,z]` tuples from `0` through `3`, measured from the
+Orange, Green, and Yellow faces. Doors additionally name their face and connect
+only when a manually placed door on the touching neighbor aligns in world
+space.
+
+Rotation behavior is authored with the visual rule builder or the safe Cube
+DSL in `/editor`. Explicit **Save Version** actions create immutable revisions.
+Incomplete drafts can be saved with diagnostics, but only an admin can select
+a valid revision as the public Default.
+
+Admin authorization uses `app_metadata.role = "admin"` in Supabase Auth. After
+changing that metadata, refresh the user's session by signing out and back in.
+Enable leaked-password protection in the Supabase Auth dashboard before
+production use.
 
 ## Verification
 

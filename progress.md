@@ -25,6 +25,11 @@ Cubesque-Ape remains a full-viewport charcoal isometric puzzle stage with bright
 
 ## Verification
 
+- The Level Editor World canvas now swaps X and Y only in its isometric view projection; logical coordinates, labels, rotations, and saved level data remain unchanged.
+- Focused Chrome verification on the signed-in `/editor` World tab confirmed `(1,0,0)` renders on the left diagonal, `(0,1,0)` on the right, Z stacking is unchanged, and the console has no errors. The capture is in `agent-files/output/world-axis-flip.png`.
+- The Interior tab now mirrors the playable chamber as an isometric 4 × 4 × 4 stack. Only the selected Z floor is opaque and interactive; inactive floors remain visible at reduced alpha for spatial context.
+- Placed play-mode items now render from the owning piece's rotated colour frame instead of the stale single-obstacle cache. The editor adapter preserves face-relative metadata for obstacles, bananas, spawns, and doors.
+- Focused Chrome verification switched between Z floors 0 and 3 and placed a banana at `(1,1,3)` with no console errors. The exact rotation regression now asserts that an obstacle at 0 from Orange resolves to 3 from Red when Red is on the left wall; no manual slice choice is required. Captures are under `agent-files/output/interior-isometric-*.png`.
 - `npm run check` passes; ESLint reports seven non-blocking warnings retained from the generated configs and preserved game/voxel code.
 - `npm run build` passes on Next.js 16.2.11; `/` and `/editor` are statically generated App Router routes.
 - `npm run test:engine` passes the signed U-turn attachment check for the cubelet, Ape, and obstacle.
