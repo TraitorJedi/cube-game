@@ -53,3 +53,8 @@ Cubesque-Ape remains a full-viewport charcoal isometric puzzle stage with bright
 
 - Validate a deployment preview before merging the migration branch.
 - Recheck the upstream Next.js/PostCSS/Sharp advisories when patched package releases are available.
+- The editor World, Interior, and Rotation previews now render through the public Playtest `CubeScene`; the older schematic components remain exported only for backwards compatibility and are no longer mounted.
+- Interior framing now applies the World preview's aspect-ratio contain fit, preventing the shared Playtest room from clipping in the editor's tall, narrow preview pane.
+- Cube-mode camera orbit now centers on the active cubelet (the selected piece in editor previews), and mobile overview framing includes the offset when containing the World Cube.
+- Editor sidebars now use the same thumbnail hover/click-to-pin treatment at every viewport width; mobile uses a single full-width scene row and larger 44px thumbnail targets.
+- Pinned panels on the same edge now compose horizontally instead of overlapping; sidebar width scales from a 30-character content floor and viewport width, with mobile caps.

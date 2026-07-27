@@ -110,7 +110,7 @@ function addActiveStickerBorder(mesh, side) {
   // The legacy CSS treatment is one substantial yellow border plus a soft
   // box-shadow. Keep one luminous silhouette here and let bloom create the
   // halo; a separate oversized line reads as nested wireframes at corners.
-  const border = new THREE.Mesh(new THREE.ShapeGeometry(outerBorder, 16), new THREE.MeshBasicMaterial({ color: new THREE.Color().setRGB(3.1, 2.15, .32), toneMapped: false, side: THREE.DoubleSide }));
+  const border = new THREE.Mesh(new THREE.ShapeGeometry(outerBorder, 16), new THREE.MeshBasicMaterial({ color: new THREE.Color().setRGB(2.4, 1.65, .24), toneMapped: false, side: THREE.DoubleSide }));
   positionFace(border, side, .886); border.renderOrder = 3; border.raycast = () => {};
   mesh.add(border);
 }
@@ -140,7 +140,7 @@ function legacyCubePixelSize() {
   return (tile + gap) * 3;
 }
 
-function mobileOverviewDistance(width, height, viewYaw, viewPitch) {
+function mobileOverviewDistance(width, height, viewYaw, viewPitch, focus = { x: 0, y: 0, z: 0 }) {
   const aspect = Math.max(1, width) / Math.max(1, height);
   const tangent = Math.tan(THREE.MathUtils.degToRad(38 / 2));
   const sinYaw = Math.sin(viewYaw), cosYaw = Math.cos(viewYaw);
@@ -150,9 +150,12 @@ function mobileOverviewDistance(width, height, viewYaw, viewPitch) {
   // Fit a padded bound around all eight World Cube corners into the current
   // perspective frustum. Using the projected silhouette instead of a fixed
   // sphere lets each phone orientation zoom closer without clipping a side.
-  for (const x of [-CUBE_FRAME_HALF_EXTENT, CUBE_FRAME_HALF_EXTENT]) {
-    for (const y of [-CUBE_FRAME_HALF_EXTENT, CUBE_FRAME_HALF_EXTENT]) {
-      for (const z of [-CUBE_FRAME_HALF_EXTENT, CUBE_FRAME_HALF_EXTENT]) {
+  for (const worldX of [-CUBE_FRAME_HALF_EXTENT, CUBE_FRAME_HALF_EXTENT]) {
+    for (const worldY of [-CUBE_FRAME_HALF_EXTENT, CUBE_FRAME_HALF_EXTENT]) {
+      for (const worldZ of [-CUBE_FRAME_HALF_EXTENT, CUBE_FRAME_HALF_EXTENT]) {
+        const x = worldX - focus.x * STEP;
+        const y = worldY - focus.y * STEP;
+        const z = worldZ - focus.z * STEP;
         const cameraX = x * cosYaw - z * sinYaw;
         const cameraY = -x * sinYaw * sinPitch + y * cosPitch - z * cosYaw * sinPitch;
         const depthOffset = -x * sinYaw * cosPitch - y * sinPitch - z * cosYaw * cosPitch;
@@ -296,7 +299,17 @@ function addInterior(scene, piece, player, activePieceId, level) {
   return pawn;
 }
 
-function CubeScene({ game, onTurn }) {
+// The editor previews use this exact renderer rather than recreating its own
+// cube and chamber visual treatment.
+/**
+ * @param {{
+ *   game: any;
+ *   onTurn?: (move: any) => void;
+ *   onPieceSelect?: (pieceId: string) => void;
+ *   allowTurns?: boolean;
+ * }} props
+ */
+export function CubeScene({ game, onTurn, onPieceSelect, allowTurns = true }) {
   const host = useRef(null);
   const cameraRef = useRef();
   const sceneRef = useRef();
@@ -306,6 +319,8 @@ function CubeScene({ game, onTurn }) {
   gameRef.current = game;
   const previousMode = useRef(game.mode);
   const onTurnRef = useRef(onTurn); onTurnRef.current = onTurn;
+  const onPieceSelectRef = useRef(onPieceSelect); onPieceSelectRef.current = onPieceSelect;
+  const allowTurnsRef = useRef(allowTurns); allowTurnsRef.current = allowTurns;
   // Match legacy app.js: the overview begins on the Red / Blue / White
   // front-right-top presentation (CSS rotateX(-24deg) rotateY(-34deg)).
   const yaw = useRef(.65); const pitch = useRef(.45); const dragging = useRef(null); const turnAnimation = useRef(false);
@@ -327,7 +342,7 @@ function CubeScene({ game, onTurn }) {
     const composer = new EffectComposer(renderer, renderTarget); composer.addPass(new RenderPass(scene, camera));
     // Approximate the legacy 24px gold box-shadow: a bright core with a wide,
     // soft falloff. The threshold remains above normal sticker luminance.
-    const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 1.02, .58, 1.75); composer.addPass(bloom);
+    const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.5, .35, 1.65); composer.addPass(bloom);
     const resize = () => {
       // React can detach the host while ResizeObserver still has a queued
       // notification. Do not let a teardown-time callback touch a null node.
@@ -350,6 +365,11 @@ function CubeScene({ game, onTurn }) {
     const pointerDown = (event) => {
       if (gameRef.current.mode !== "cube" || turnAnimation.current) return;
       const hit = hitSticker(event); host.current.setPointerCapture?.(event.pointerId);
+      if (hit && !allowTurnsRef.current) {
+        onPieceSelectRef.current?.(hit.piece.id);
+        dragging.current = { kind: "orbit", x: event.clientX, y: event.clientY };
+        return;
+      }
       dragging.current = hit ? { kind: "face", hit, startX: event.clientX, startY: event.clientY, startTime: performance.now(), setup: null } : { kind: "orbit", x: event.clientX, y: event.clientY };
     };
     const pointerMove = (event) => {
@@ -408,14 +428,22 @@ function CubeScene({ game, onTurn }) {
       // Mobile uses the current projected silhouette for a near-fullscreen
       // contain fit. Wider desktop layouts retain the established framing.
       const overviewDistance = clientWidth <= 900
-        ? mobileOverviewDistance(clientWidth, clientHeight, yaw.current, pitch.current)
+        ? mobileOverviewDistance(clientWidth, clientHeight, yaw.current, pitch.current, activePiece?.position)
         : 17.5 * Math.max(1, clientHeight / Math.max(1, clientWidth));
-      const distance = current.mode === "interior" ? 14.6 : overviewDistance;
-      const target = current.mode === "interior" && activePiece
-        ? new THREE.Vector3(activePiece.position.x * STEP, activePiece.position.y * STEP - .4, activePiece.position.z * STEP)
+      // The chamber normally renders in a wide, full-screen playtest.  Editor
+      // previews can be much taller than they are wide, so match the World
+      // Cube's contain fit and preserve the whole 4 × 4 room in view.
+      const interiorDistance = 14.6 * Math.max(1, clientHeight / Math.max(1, clientWidth));
+      const distance = current.mode === "interior" ? interiorDistance : overviewDistance;
+      const target = activePiece
+        ? new THREE.Vector3(
+          activePiece.position.x * STEP,
+          activePiece.position.y * STEP + (current.mode === "interior" ? -.4 : 0),
+          activePiece.position.z * STEP,
+        )
         : new THREE.Vector3();
-      // Interior mode orbits the active chamber itself, rather than continuing
-      // to orbit the cube origin after that chamber has moved to a new slot.
+      // Both views orbit the active cubelet: this follows the Ape in Playtest
+      // and the selected World Piece in the editor.
       camera.position.copy(target).add(new THREE.Vector3(
         Math.sin(yaw.current) * Math.cos(pitch.current) * distance,
         Math.sin(pitch.current) * distance,

@@ -19,7 +19,9 @@ import {
   type WorldPiece,
   type WorldPosition,
 } from "../../engine/level-engine";
-import GameApp from "../GameApp";
+import GameApp, { CubeScene } from "../GameApp";
+import { createGameState, turnCube } from "../engine.js";
+import { levelDefinitionToLegacyLevel } from "../../engine/legacy-adapter";
 import {
   createLevel,
   listLevels,
@@ -91,18 +93,40 @@ function WorldCanvas({
   previewRule,
   onSelect,
   onMoveDrop,
+  mode,
 }: {
   level: LevelDefinitionV1;
   selectedPieceId?: string;
   previewRule?: RotationRule;
   onSelect: (pieceId: string) => void;
   onMoveDrop: (pieceId: string) => void;
+  mode?: "cube" | "interior";
 }) {
   const runtime = useMemo(() => {
     const world = createRuntimeWorld(level);
     return previewRule ? applyRotationRule(world, previewRule) : world;
   }, [level, previewRule]);
   const positions = new Map(runtime.pieces.map((piece) => [piece.id, piece.position]));
+  const game = useMemo(() => {
+    const base = createGameState(levelDefinitionToLegacyLevel(level));
+    const focused = { ...base, activePieceId: selectedPieceId ?? base.activePieceId, mode };
+    return previewRule ? turnCube(focused, { ruleId: previewRule.id, direction: 1, turns: 1 }) : focused;
+  }, [level, mode, previewRule, selectedPieceId]);
+
+  if (mode) {
+    return (
+      <div className={`engine-playtest-preview engine-playtest-preview--${mode}`}>
+        {level.pieces.length ? (
+          <CubeScene allowTurns={false} game={game} onPieceSelect={mode === "cube" ? onSelect : undefined} />
+        ) : (
+          <div className="engine-empty-canvas">
+            <strong>No World Pieces</strong>
+            <span>Add one by exact position or generate a matrix.</span>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div
@@ -153,7 +177,7 @@ function WorldCanvas({
   );
 }
 
-function InteriorCanvas({
+export function InteriorCanvas({
   piece,
   activeFloor,
   paletteKind,
@@ -258,6 +282,14 @@ export default function LevelEditorApp({
   const [selectedPieceId, setSelectedPieceId] = useState<string>();
   const [view, setView] = useState<WorkspaceView>("world");
   const [floor, setFloor] = useState(0);
+  const [placementX, setPlacementX] = useState(1);
+  const [placementY, setPlacementY] = useState(0);
+  const [levelsPanelOpen, setLevelsPanelOpen] = useState(false);
+  const [inspectorPanelOpen, setInspectorPanelOpen] = useState(false);
+  const [interiorPaletteOpen, setInteriorPaletteOpen] = useState(false);
+  const [interiorItemsOpen, setInteriorItemsOpen] = useState(false);
+  const [rotationRulesOpen, setRotationRulesOpen] = useState(false);
+  const [rotationDslOpen, setRotationDslOpen] = useState(false);
   const [paletteKind, setPaletteKind] = useState<ItemKind>("obstacle");
   const [doorFace, setDoorFace] = useState<FaceColor>("orange");
   const [status, setStatus] = useState("Loading levels…");
@@ -509,12 +541,6 @@ export default function LevelEditorApp({
     }));
   };
 
-  const onCellDrop = (event: DragEvent<HTMLButtonElement>, x: number, y: number, z = floor) => {
-    event.preventDefault();
-    const kind = event.dataTransfer.getData("application/x-level-item") as ItemKind;
-    if (ITEM_OPTIONS.some((item) => item.kind === kind)) placeItem(kind, x, y, z);
-  };
-
   const removeItem = (itemId: string) => {
     if (!selectedPiece) return;
     updateDraft((level) => ({
@@ -574,7 +600,7 @@ export default function LevelEditorApp({
   }
 
   return (
-    <main className="engine-workbench">
+    <main className={`engine-workbench ${levelsPanelOpen ? "is-levels-panel-open" : ""} ${inspectorPanelOpen ? "is-inspector-panel-open" : ""}`}>
       <header className="engine-toolbar">
         <div>
           <p className="eyebrow">Cubesque-Ape Engine</p>
@@ -590,6 +616,16 @@ export default function LevelEditorApp({
           <button onClick={logOut} type="button">Sign out</button>
         </div>
       </header>
+      <div className="engine-sidebar-trigger engine-sidebar-trigger--levels">
+        <button aria-label="Toggle levels panel" aria-pressed={levelsPanelOpen} className="engine-sidebar-thumbnail engine-sidebar-thumbnail--levels" onClick={() => setLevelsPanelOpen((open) => !open)} type="button">
+          <span aria-hidden="true">☷</span>
+        </button>
+      </div>
+      <div className="engine-sidebar-trigger engine-sidebar-trigger--inspector">
+        <button aria-label="Toggle inspector panel" aria-pressed={inspectorPanelOpen} className="engine-sidebar-thumbnail engine-sidebar-thumbnail--inspector" onClick={() => setInspectorPanelOpen((open) => !open)} type="button">
+          <span aria-hidden="true">◫</span>
+        </button>
+      </div>
 
       <aside className="engine-level-rail">
         <div className="engine-rail-heading">
@@ -633,6 +669,7 @@ export default function LevelEditorApp({
           <>
             <WorldCanvas
               level={draft}
+              mode="cube"
               onMoveDrop={movePiece}
               onSelect={(pieceId) => setSelectedPieceId(pieceId)}
               previewRule={previewRule}
@@ -645,7 +682,9 @@ export default function LevelEditorApp({
             </div>
           </>
         ) : view === "interior" ? (
-          <div className="engine-interior-workspace">
+          <div className={`engine-interior-workspace ${interiorPaletteOpen ? "is-palette-open" : ""} ${interiorItemsOpen ? "is-items-open" : ""}`}>
+            <div className="engine-workspace-trigger engine-workspace-trigger--palette"><button aria-label="Toggle item palette" aria-pressed={interiorPaletteOpen} className="engine-workspace-thumbnail engine-workspace-thumbnail--palette" onClick={() => setInteriorPaletteOpen((open) => !open)} type="button"><span aria-hidden="true">✦</span></button></div>
+            <div className="engine-workspace-trigger engine-workspace-trigger--items"><button aria-label="Toggle placed items" aria-pressed={interiorItemsOpen} className="engine-workspace-thumbnail engine-workspace-thumbnail--items" onClick={() => setInteriorItemsOpen((open) => !open)} type="button"><span aria-hidden="true">☷</span></button></div>
             <div className="engine-item-palette">
               <h2>Place items</h2>
               {ITEM_OPTIONS.map((item) => (
@@ -679,6 +718,17 @@ export default function LevelEditorApp({
                   ))}
                 </div>
               </div>
+              <div className="engine-placement-coordinate">
+                <span>Place at cell</span>
+                <div>
+                  <label>X<input aria-label="Cell X" max={3} min={0} onChange={(event) => setPlacementX(Number(event.target.value))} type="number" value={placementX} /></label>
+                  <label>Y<input aria-label="Cell Y" max={3} min={0} onChange={(event) => setPlacementY(Number(event.target.value))} type="number" value={placementY} /></label>
+                  <label>Z<input aria-label="Cell Z" max={3} min={0} onChange={(event) => setFloor(Number(event.target.value))} type="number" value={floor} /></label>
+                </div>
+                <button disabled={!selectedPiece} onClick={() => placeItem(paletteKind, placementX, placementY, floor)} type="button">
+                  Place {paletteKind.replace("_", " ")}
+                </button>
+              </div>
               {paletteKind === "door" && (
                 <label>
                   Door face
@@ -688,12 +738,13 @@ export default function LevelEditorApp({
                 </label>
               )}
             </div>
-            <InteriorCanvas
-              activeFloor={floor}
-              onDrop={onCellDrop}
-              onPlace={placeItem}
-              paletteKind={paletteKind}
-              piece={selectedPiece}
+            <WorldCanvas
+              level={draft}
+              mode="interior"
+              onMoveDrop={movePiece}
+              onSelect={setSelectedPieceId}
+              previewRule={previewRule}
+              selectedPieceId={selectedPieceId}
             />
             <div className="engine-interior-items">
               <h2>{selectedPiece?.label ?? "Select a World Piece"}</h2>
@@ -712,9 +763,12 @@ export default function LevelEditorApp({
             </div>
           </div>
         ) : view === "rotations" ? (
-          <div className="engine-rotation-workspace">
+          <div className={`engine-rotation-workspace ${rotationRulesOpen ? "is-rules-open" : ""} ${rotationDslOpen ? "is-dsl-open" : ""}`}>
+            <div className="engine-workspace-trigger engine-workspace-trigger--rules"><button aria-label="Toggle rotation rules" aria-pressed={rotationRulesOpen} className="engine-workspace-thumbnail engine-workspace-thumbnail--rules" onClick={() => setRotationRulesOpen((open) => !open)} type="button"><span aria-hidden="true">↻</span></button></div>
+            <div className="engine-workspace-trigger engine-workspace-trigger--dsl"><button aria-label="Toggle cube DSL" aria-pressed={rotationDslOpen} className="engine-workspace-thumbnail engine-workspace-thumbnail--dsl" onClick={() => setRotationDslOpen((open) => !open)} type="button"><span aria-hidden="true">⌘</span></button></div>
             <WorldCanvas
               level={draft}
+              mode="cube"
               onMoveDrop={movePiece}
               onSelect={setSelectedPieceId}
               previewRule={previewRule}
