@@ -8,6 +8,7 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import { generateClassicApe, generateCyberApe, generateAstronautApe } from "../voxel-art/generator.js";
 import { GRID_SIZE, FACE_COLORS, MOVE_CONFIG, createGameState, getActivePiece, movePlayerInWorld, resolveItemCell, turnCube } from "./engine.js";
 import { loadPrimaryLevel } from "./level-store.js";
+import { levelDefinitionToLegacyLevel } from "../engine/legacy-adapter.ts";
 
 const { createElement: h } = React;
 const STEP = 1.92;
@@ -32,7 +33,7 @@ function interiorFaceColor(piece, side) {
 function rotateVector(vector, axis, angle) { const { x, y, z } = vector; if (axis === "x") return angle === 90 ? { x, y: -z, z: y } : { x, y: z, z: -y }; if (axis === "y") return angle === 90 ? { x: z, y, z: -x } : { x: -z, y, z: x }; return angle === 90 ? { x: -y, y: x, z } : { x: y, y: -x, z }; }
 function axisOf(vector) { return ["x", "y", "z"].find((axis) => vector[axis] !== 0); }
 function dot(first, second) { return first.x * second.x + first.y * second.y + first.z * second.z; }
-function gestureMove(side, position, dx, dy) {
+function gestureMove(side, piece, dx, dy, rotationRules = []) {
   const frame = FACE_FRAMES[side]; const normal = FACE_VECTORS[side]; if (!frame || !normal) return null;
   const horizontal = Math.abs(dx) >= Math.abs(dy); const axis = axisOf(horizontal ? frame.up : frame.right);
   // Select the slice orientation from the positive screen direction only.
@@ -41,8 +42,26 @@ function gestureMove(side, position, dx, dy) {
   // rotate in the same visual direction because the two negatives cancel.
   const direction = horizontal ? frame.right : { x: -frame.up.x, y: -frame.up.y, z: -frame.up.z };
   let angle = dot(rotateVector(normal, axis, 90), direction) > dot(rotateVector(normal, axis, -90), direction) ? 90 : -90;
-  if (side === "up" && position.x === 0 && position.y === 1 && position.z === 0) angle *= -1;
-  const entry = Object.entries(MOVE_CONFIG).find(([, config]) => config.axis === axis && config.layer === position[axis]);
+  if (side === "up" && piece.position.x === 0 && piece.position.y === 1 && piece.position.z === 0) angle *= -1;
+  const customRule = rotationRules.find((rule) => {
+    if (rule.sceneAxis !== axis) return false;
+    return rule.sceneSelector.type === "pieces"
+      ? rule.sceneSelector.pieceIds.includes(piece.id)
+      : piece.position[rule.sceneSelector.axis] === rule.sceneSelector.coordinate;
+  });
+  if (customRule) {
+    const moveDirection = angle === customRule.angle ? 1 : -1;
+    return {
+      move: { ruleId: customRule.id, direction: moveDirection, turns: 1 },
+      rule: customRule,
+      axis,
+      pivot: customRule.scenePivot,
+      horizontal,
+      effectiveAngle: customRule.angle * moveDirection,
+      previewSign: angle / 90,
+    };
+  }
+  const entry = Object.entries(MOVE_CONFIG).find(([, config]) => config.axis === axis && config.layer === piece.position[axis]);
   if (!entry) return null;
   const [base, config] = entry; const move = angle === config.angle ? base : `${base}'`;
   return { move, axis, layer: position[axis], horizontal, previewSign: (move.endsWith("'") ? -config.angle : config.angle) / 90 };
@@ -91,7 +110,7 @@ function addActiveStickerBorder(mesh, side) {
   // The legacy CSS treatment is one substantial yellow border plus a soft
   // box-shadow. Keep one luminous silhouette here and let bloom create the
   // halo; a separate oversized line reads as nested wireframes at corners.
-  const border = new THREE.Mesh(new THREE.ShapeGeometry(outerBorder, 16), new THREE.MeshBasicMaterial({ color: new THREE.Color().setRGB(3.1, 2.15, .32), toneMapped: false, side: THREE.DoubleSide }));
+  const border = new THREE.Mesh(new THREE.ShapeGeometry(outerBorder, 16), new THREE.MeshBasicMaterial({ color: new THREE.Color().setRGB(2.4, 1.65, .24), toneMapped: false, side: THREE.DoubleSide }));
   positionFace(border, side, .886); border.renderOrder = 3; border.raycast = () => {};
   mesh.add(border);
 }
@@ -121,7 +140,7 @@ function legacyCubePixelSize() {
   return (tile + gap) * 3;
 }
 
-function mobileOverviewDistance(width, height, viewYaw, viewPitch) {
+function mobileOverviewDistance(width, height, viewYaw, viewPitch, focus = { x: 0, y: 0, z: 0 }) {
   const aspect = Math.max(1, width) / Math.max(1, height);
   const tangent = Math.tan(THREE.MathUtils.degToRad(38 / 2));
   const sinYaw = Math.sin(viewYaw), cosYaw = Math.cos(viewYaw);
@@ -131,9 +150,12 @@ function mobileOverviewDistance(width, height, viewYaw, viewPitch) {
   // Fit a padded bound around all eight World Cube corners into the current
   // perspective frustum. Using the projected silhouette instead of a fixed
   // sphere lets each phone orientation zoom closer without clipping a side.
-  for (const x of [-CUBE_FRAME_HALF_EXTENT, CUBE_FRAME_HALF_EXTENT]) {
-    for (const y of [-CUBE_FRAME_HALF_EXTENT, CUBE_FRAME_HALF_EXTENT]) {
-      for (const z of [-CUBE_FRAME_HALF_EXTENT, CUBE_FRAME_HALF_EXTENT]) {
+  for (const worldX of [-CUBE_FRAME_HALF_EXTENT, CUBE_FRAME_HALF_EXTENT]) {
+    for (const worldY of [-CUBE_FRAME_HALF_EXTENT, CUBE_FRAME_HALF_EXTENT]) {
+      for (const worldZ of [-CUBE_FRAME_HALF_EXTENT, CUBE_FRAME_HALF_EXTENT]) {
+        const x = worldX - focus.x * STEP;
+        const y = worldY - focus.y * STEP;
+        const z = worldZ - focus.z * STEP;
         const cameraX = x * cosYaw - z * sinYaw;
         const cameraY = -x * sinYaw * sinPitch + y * cosPitch - z * cosYaw * sinPitch;
         const depthOffset = -x * sinYaw * cosPitch - y * sinPitch - z * cosYaw * cosPitch;
@@ -205,7 +227,7 @@ function disposeObjectTree(object) {
   });
 }
 
-function addInterior(scene, piece, player, activePieceId, level, solidCell) {
+function addInterior(scene, piece, player, activePieceId, level) {
   const origin = new THREE.Vector3(piece.position.x * STEP, piece.position.y * STEP, piece.position.z * STEP);
   const cell = 1;
   scene.add(new THREE.HemisphereLight(0xffffff, 0x101419, .85));
@@ -267,14 +289,27 @@ function addInterior(scene, piece, player, activePieceId, level, solidCell) {
   items.filter((item) => item.kind !== "door" && item.kind !== "spawn").forEach((item) => {
     if (item.kind === "golden_banana" && level.collectedItemIds?.includes(item.id)) return;
     const isBanana = item.kind === "golden_banana";
-    const displayCell = isBanana ? item.cell : solidCell ?? item.cell;
+    // Every placed item is resolved from the owning piece's rotated colour
+    // frame above. A separate solid-cell cache can be stale for custom editor
+    // rules and collapses multiple obstacles onto one rendered position.
+    const displayCell = item.cell;
     const mesh = isBanana ? createVoxelBanana() : new THREE.Mesh(new THREE.BoxGeometry(cell, cell, cell), MATERIAL_FACE.map((face) => new THREE.MeshStandardMaterial({ color: COLORS[interiorFaceColor(piece, OPPOSITE_SIDE[face])] ?? COLORS.core, roughness: .8, metalness: .02 })));
     mesh.position.copy(origin).add(new THREE.Vector3(local(displayCell.x), isBanana ? -1.78 + displayCell.y : -1.5 + displayCell.y, local(displayCell.z))); scene.add(mesh);
   });
   return pawn;
 }
 
-function CubeScene({ game, onTurn }) {
+// The editor previews use this exact renderer rather than recreating its own
+// cube and chamber visual treatment.
+/**
+ * @param {{
+ *   game: any;
+ *   onTurn?: (move: any) => void;
+ *   onPieceSelect?: (pieceId: string) => void;
+ *   allowTurns?: boolean;
+ * }} props
+ */
+export function CubeScene({ game, onTurn, onPieceSelect, allowTurns = true }) {
   const host = useRef(null);
   const cameraRef = useRef();
   const sceneRef = useRef();
@@ -284,6 +319,8 @@ function CubeScene({ game, onTurn }) {
   gameRef.current = game;
   const previousMode = useRef(game.mode);
   const onTurnRef = useRef(onTurn); onTurnRef.current = onTurn;
+  const onPieceSelectRef = useRef(onPieceSelect); onPieceSelectRef.current = onPieceSelect;
+  const allowTurnsRef = useRef(allowTurns); allowTurnsRef.current = allowTurns;
   // Match legacy app.js: the overview begins on the Red / Blue / White
   // front-right-top presentation (CSS rotateX(-24deg) rotateY(-34deg)).
   const yaw = useRef(.65); const pitch = useRef(.45); const dragging = useRef(null); const turnAnimation = useRef(false);
@@ -305,7 +342,7 @@ function CubeScene({ game, onTurn }) {
     const composer = new EffectComposer(renderer, renderTarget); composer.addPass(new RenderPass(scene, camera));
     // Approximate the legacy 24px gold box-shadow: a bright core with a wide,
     // soft falloff. The threshold remains above normal sticker luminance.
-    const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 1.02, .58, 1.75); composer.addPass(bloom);
+    const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.5, .35, 1.65); composer.addPass(bloom);
     const resize = () => {
       // React can detach the host while ResizeObserver still has a queued
       // notification. Do not let a teardown-time callback touch a null node.
@@ -322,11 +359,17 @@ function CubeScene({ game, onTurn }) {
     };
     const previewTransform = (preview, angle) => {
       const radians = THREE.MathUtils.degToRad(angle); const rotation = new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(preview.axis === "x" ? 1 : 0, preview.axis === "y" ? 1 : 0, preview.axis === "z" ? 1 : 0), radians);
-      preview.meshes.forEach(({ mesh, position, quaternion }) => { mesh.position.copy(position).applyMatrix4(rotation); mesh.quaternion.copy(quaternion).premultiply(new THREE.Quaternion().setFromRotationMatrix(rotation)); }); preview.angle = angle; render();
+      const pivot = new THREE.Vector3((preview.pivot?.x ?? 0) * STEP, (preview.pivot?.y ?? 0) * STEP, (preview.pivot?.z ?? 0) * STEP);
+      preview.meshes.forEach(({ mesh, position, quaternion }) => { mesh.position.copy(position).sub(pivot).applyMatrix4(rotation).add(pivot); mesh.quaternion.copy(quaternion).premultiply(new THREE.Quaternion().setFromRotationMatrix(rotation)); }); preview.angle = angle; render();
     };
     const pointerDown = (event) => {
       if (gameRef.current.mode !== "cube" || turnAnimation.current) return;
       const hit = hitSticker(event); host.current.setPointerCapture?.(event.pointerId);
+      if (hit && !allowTurnsRef.current) {
+        onPieceSelectRef.current?.(hit.piece.id);
+        dragging.current = { kind: "orbit", x: event.clientX, y: event.clientY };
+        return;
+      }
       dragging.current = hit ? { kind: "face", hit, startX: event.clientX, startY: event.clientY, startTime: performance.now(), setup: null } : { kind: "orbit", x: event.clientX, y: event.clientY };
     };
     const pointerMove = (event) => {
@@ -334,9 +377,16 @@ function CubeScene({ game, onTurn }) {
       if (drag.kind === "orbit") { yaw.current += (event.clientX - drag.x) * .01; pitch.current = Math.max(-.25, Math.min(1.2, pitch.current + (event.clientY - drag.y) * .01)); drag.x = event.clientX; drag.y = event.clientY; render(); return; }
       const dx = event.clientX - drag.startX; const dy = event.clientY - drag.startY;
       if (!drag.setup && Math.hypot(dx, dy) > 6) {
-        const setup = gestureMove(drag.hit.side, drag.hit.piece.position, dx, dy);
+        const setup = gestureMove(drag.hit.side, drag.hit.piece, dx, dy, gameRef.current.rotationRules);
         if (!setup) return;
-        const meshes = scene.children.filter((child) => child.userData.piece?.position[setup.axis] === setup.layer).map((mesh) => ({ mesh, position: mesh.position.clone(), quaternion: mesh.quaternion.clone() }));
+        const meshes = scene.children.filter((child) => {
+          const piece = child.userData.piece;
+          if (!piece) return false;
+          if (!setup.rule) return piece.position[setup.axis] === setup.layer;
+          return setup.rule.sceneSelector.type === "pieces"
+            ? setup.rule.sceneSelector.pieceIds.includes(piece.id)
+            : piece.position[setup.rule.sceneSelector.axis] === setup.rule.sceneSelector.coordinate;
+        }).map((mesh) => ({ mesh, position: mesh.position.clone(), quaternion: mesh.quaternion.clone() }));
         drag.setup = { ...setup, meshes, angle: 0 };
       }
       if (drag.setup) {
@@ -351,8 +401,12 @@ function CubeScene({ game, onTurn }) {
       let target = Math.round(drag.setup.angle / 90) * 90;
       if (speed > .3 && Math.abs(drag.setup.angle) > 4) target = drag.setup.angle > 0 ? Math.ceil(drag.setup.angle / 90) * 90 : Math.floor(drag.setup.angle / 90) * 90;
       target = THREE.MathUtils.clamp(target, -180, 180);
-      const effectiveAngle = (drag.setup.move.endsWith("'") ? -MOVE_CONFIG[drag.setup.move[0]].angle : MOVE_CONFIG[drag.setup.move].angle); const turns = Math.round(target / effectiveAngle);
-      const move = turns === 0 ? null : Math.abs(turns) === 2 ? `${drag.setup.move.replace("'", "")}2` : turns > 0 ? drag.setup.move : drag.setup.move.endsWith("'") ? drag.setup.move[0] : `${drag.setup.move}'`;
+      const effectiveAngle = drag.setup.effectiveAngle ?? (drag.setup.move.endsWith("'") ? -MOVE_CONFIG[drag.setup.move[0]].angle : MOVE_CONFIG[drag.setup.move].angle); const turns = Math.round(target / effectiveAngle);
+      const move = turns === 0
+        ? null
+        : drag.setup.rule
+          ? { ruleId: drag.setup.rule.id, direction: drag.setup.move.direction * Math.sign(turns), turns: Math.abs(turns) }
+          : Math.abs(turns) === 2 ? `${drag.setup.move.replace("'", "")}2` : turns > 0 ? drag.setup.move : drag.setup.move.endsWith("'") ? drag.setup.move[0] : `${drag.setup.move}'`;
       const duration = Math.max(110, Math.min(320, 110 + Math.abs(target - drag.setup.angle) * 1.8)); const start = performance.now(); const from = drag.setup.angle; turnAnimation.current = true;
       const finish = () => {
         // Snapping a short/slow drag back to zero is a valid gesture, not a
@@ -374,14 +428,22 @@ function CubeScene({ game, onTurn }) {
       // Mobile uses the current projected silhouette for a near-fullscreen
       // contain fit. Wider desktop layouts retain the established framing.
       const overviewDistance = clientWidth <= 900
-        ? mobileOverviewDistance(clientWidth, clientHeight, yaw.current, pitch.current)
+        ? mobileOverviewDistance(clientWidth, clientHeight, yaw.current, pitch.current, activePiece?.position)
         : 17.5 * Math.max(1, clientHeight / Math.max(1, clientWidth));
-      const distance = current.mode === "interior" ? 14.6 : overviewDistance;
-      const target = current.mode === "interior" && activePiece
-        ? new THREE.Vector3(activePiece.position.x * STEP, activePiece.position.y * STEP - .4, activePiece.position.z * STEP)
+      // The chamber normally renders in a wide, full-screen playtest.  Editor
+      // previews can be much taller than they are wide, so match the World
+      // Cube's contain fit and preserve the whole 4 × 4 room in view.
+      const interiorDistance = 14.6 * Math.max(1, clientHeight / Math.max(1, clientWidth));
+      const distance = current.mode === "interior" ? interiorDistance : overviewDistance;
+      const target = activePiece
+        ? new THREE.Vector3(
+          activePiece.position.x * STEP,
+          activePiece.position.y * STEP + (current.mode === "interior" ? -.4 : 0),
+          activePiece.position.z * STEP,
+        )
         : new THREE.Vector3();
-      // Interior mode orbits the active chamber itself, rather than continuing
-      // to orbit the cube origin after that chamber has moved to a new slot.
+      // Both views orbit the active cubelet: this follows the Ape in Playtest
+      // and the selected World Piece in the editor.
       camera.position.copy(target).add(new THREE.Vector3(
         Math.sin(yaw.current) * Math.cos(pitch.current) * distance,
         Math.sin(pitch.current) * distance,
@@ -421,7 +483,7 @@ function CubeScene({ game, onTurn }) {
       game.cube.forEach((piece) => { const cubelet = createCubelet(piece, game.material, piece.id === game.activePieceId); cubelet.userData.worldObject = true; scene.add(cubelet); });
     } else if (activePiece) {
       const before = new Set(scene.children);
-      pawnRef.current = addInterior(scene, activePiece, game.player, game.activePieceId, { ...game.level, skin: game.skin, collectedItemIds: game.collectedItemIds }, game.solidCell);
+      pawnRef.current = addInterior(scene, activePiece, game.player, game.activePieceId, { ...game.level, skin: game.skin, collectedItemIds: game.collectedItemIds });
       scene.children.filter((item) => !before.has(item)).forEach((item) => { item.userData.worldObject = true; });
     }
     rendererRef.current?.render();
@@ -645,21 +707,23 @@ function LegacyGameShell({ game, setGame, settingsOpen, setSettingsOpen, setMode
   );
 }
 
-export default function GameApp() {
-  const [game, setGame] = useState(createGameState);
+export default function GameApp({ levelDefinition = null, editorMode = false } = {}) {
+  const [game, setGame] = useState(() => createGameState(levelDefinition ? levelDefinitionToLegacyLevel(levelDefinition) : undefined));
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(() => {
+    if (editorMode) return null;
     try { return window.localStorage.getItem(TUTORIAL_STORAGE_KEY) === "complete" ? null : mobileTutorialViewport() ? -1 : 0; }
     catch { return mobileTutorialViewport() ? -1 : 0; }
   });
   useEffect(() => {
+    if (levelDefinition) return;
     loadPrimaryLevel().then((level) => setGame(createGameState(level))).catch(() => {});
-  }, []);
+  }, [levelDefinition]);
   useEffect(() => { const onKey = (event) => { if (game.mode !== "interior" || !event.key.startsWith("Arrow")) return; event.preventDefault(); setGame((current) => movePlayerInWorld(current, event.key)); }; window.addEventListener("keydown", onKey, { passive: false }); return () => window.removeEventListener("keydown", onKey); }, [game.mode]);
   // A view-mode change does not alter world state. Player settling happens at
   // cube-turn boundaries, where the active chamber's own obstacles are known.
   const setMode = (mode) => setGame((current) => ({ ...current, mode }));
-  const turn = (move) => setGame((current) => current.mode === "cube" && typeof move === "string" ? turnCube(current, move) : current);
+  const turn = (move) => setGame((current) => current.mode === "cube" && move ? turnCube(current, move) : current);
   const completeTutorial = () => {
     try { window.localStorage.setItem(TUTORIAL_STORAGE_KEY, "complete"); } catch {}
     setTutorialStep(null);

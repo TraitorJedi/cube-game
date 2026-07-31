@@ -6,6 +6,7 @@ import { getAuthClaims, hasSupabase, onAuthChange, signIn } from "../level-store
 type AuthClaims = {
   email?: string;
   sub?: string;
+  role?: "admin" | "creator";
 };
 
 const LevelEditorApp = lazy(() => import("./LevelEditorApp"));
@@ -104,7 +105,11 @@ export default function EditorRoute() {
 
   return (
     <Suspense fallback={<main className="editor-loading">Loading editor…</main>}>
-      <LevelEditorApp email={claims.email ?? "Signed-in user"} onSignedOut={() => setClaims(null)} />
+      <LevelEditorApp
+        email={claims.email ?? "Signed-in user"}
+        role={claims.role ?? "creator"}
+        onSignedOut={() => setClaims(null)}
+      />
     </Suspense>
   );
 }
